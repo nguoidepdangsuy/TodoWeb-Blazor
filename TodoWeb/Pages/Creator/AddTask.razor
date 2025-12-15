@@ -49,20 +49,30 @@
                 <div class="add-task-container">
                     <h2>ADD TASK</h2>
 
-                    <EditForm Model="@newTask" OnValidSubmit="HandleAddTask">
-                        <DataAnnotationsValidator />
-                        <ValidationSummary />
+                    <!-- Hiển thị validation errors tổng -->
+                    @if (!string.IsNullOrEmpty(validationError))
+                    {
+                        <div class="alert alert-danger">
+                            @validationError
+                        </div>
+                    }
 
+                    <div class="form-container">
                         <div class="form-group">
-                            <label for="title">Tên công việc:</label>
-                            <InputText id="title" @bind-Value="newTask.Title"
-                                       class="form-control" placeholder="Nhập tên công việc..." />
-                            <ValidationMessage For="@(() => newTask.Title)" />
+                            <label for="title" class="required-field">Tên công việc:</label>
+                            <input type="text" id="title" @bind="newTask.Title" @bind:event="oninput"
+                                   class="form-control" placeholder="Nhập tên công việc..." />
+                            @if (showTitleError && string.IsNullOrWhiteSpace(newTask.Title))
+                            {
+                                <div class="validation-message text-danger">
+                                    <small>Tên công việc là bắt buộc</small>
+                                </div>
+                            }
                         </div>
 
                         <!-- MULTI-ASSIGNEE SECTION -->
                         <div class="form-group">
-                            <label for="assignee">Người được giao:</label>
+                            <label for="assignee" class="required-field">Người được giao:</label>
                             <div class="multi-assignee-section">
                                 <select id="assignee" class="form-control" @onchange="OnAssigneeChanged">
                                     <option value="">Chọn người được giao</option>
@@ -99,15 +109,22 @@
                                     <p class="text-muted">Chưa có người nào được chọn.</p>
                                 </div>
                             }
+
+                            @if (showAssigneeError && !selectedAssignees.Any())
+                            {
+                                <div class="validation-message text-danger mt-2">
+                                    <small>Vui lòng chọn ít nhất một người được giao</small>
+                                </div>
+                            }
                         </div>
 
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="assignDate">Ngày giao:</label>
-                                    <InputDate id="assignDate" @bind-Value="newTask.AssignDate"
-                                               class="form-control" />
-                                    @if (newTask.AssignDate.Date < DateTime.Today)
+                                    <input type="date" id="assignDate" @bind="newTask.AssignDate" @bind:format="yyyy-MM-dd"
+                                           class="form-control" />
+                                    @if (showDateError && newTask.AssignDate.Date < DateTime.Today)
                                     {
                                         <div class="validation-message text-danger">
                                             <small>Ngày giao không được trước ngày hiện tại</small>
@@ -118,9 +135,9 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="dueDate">Ngày hết hạn:</label>
-                                    <InputDate id="dueDate" @bind-Value="newTask.DueDate"
-                                               class="form-control" />
-                                    @if (newTask.DueDate.Date < newTask.AssignDate.Date)
+                                    <input type="date" id="dueDate" @bind="newTask.DueDate" @bind:format="yyyy-MM-dd"
+                                           class="form-control" />
+                                    @if (showDateError && newTask.DueDate.Date < newTask.AssignDate.Date)
                                     {
                                         <div class="validation-message text-danger">
                                             <small>Ngày hết hạn không được trước ngày giao</small>
@@ -132,8 +149,8 @@
 
                         <div class="form-group">
                             <label for="description">Mô tả công việc:</label>
-                            <InputTextArea id="description" @bind-Value="newTask.Description"
-                                           class="form-control" rows="4" placeholder="Nhập mô tả chi tiết công việc..." />
+                            <textarea id="description" @bind="newTask.Description"
+                                      class="form-control" rows="4" placeholder="Nhập mô tả chi tiết công việc..."></textarea>
                         </div>
 
                         <div class="form-actions">
@@ -141,7 +158,7 @@
                                 <span class="btn-icon">←</span>
                                 Trước
                             </button>
-                            <button type="submit" class="btn btn-complete" disabled="@isLoading">
+                            <button type="button" class="btn btn-complete" @onclick="HandleAddTask" disabled="@isLoading">
                                 @if (isLoading)
                                 {
                                     <span class="btn-icon">⏳</span>
@@ -154,7 +171,7 @@
                                 }
                             </button>
                         </div>
-                    </EditForm>
+                    </div>
                 </div>
             </div>
         </main>
@@ -181,6 +198,12 @@
     private bool isLoading = false;
     private UserProfile? currentProfile;
     private Group? currentGroup;
+
+    // Validation variables
+    private string validationError = string.Empty;
+    private bool showTitleError = false;
+    private bool showAssigneeError = false;
+    private bool showDateError = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -277,6 +300,9 @@
 
                 // Lấy danh sách thành viên trong nhóm
                 await LoadGroupMembers();
+
+                // Set GroupId cho task
+                newTask.GroupId = GroupId;
             }
             else
             {
@@ -459,6 +485,8 @@
                 Console.WriteLine($"✅ SUCCESSFULLY ADDED: {username}");
                 Console.WriteLine($"📊 Selected count: {selectedAssignees.Count}, Available count: {availableMembers.Count}");
 
+                // Clear assignee error nếu đã chọn
+                showAssigneeError = false;
                 StateHasChanged();
             }
             else
@@ -502,6 +530,12 @@
 
     private async Task HandleAddTask()
     {
+        // Reset validation errors
+        validationError = string.Empty;
+        showTitleError = false;
+        showAssigneeError = false;
+        showDateError = false;
+
         Console.WriteLine($"🔍 DEBUG BEFORE SUBMIT:");
         Console.WriteLine($"- GroupId: {GroupId}");
         Console.WriteLine($"- currentGroup: {currentGroup?.Name}");
@@ -510,34 +544,40 @@
         Console.WriteLine($"- DueDate: {newTask.DueDate:dd/MM/yyyy}");
         Console.WriteLine($"- Title: {newTask.Title}");
 
-        if (string.IsNullOrEmpty(GroupId) || currentGroup == null)
-        {
-            await JSRuntime.InvokeVoidAsync("alert", "Lỗi: Không tìm thấy thông tin phòng!");
-            return;
-        }
+        // VALIDATION
+        var hasError = false;
 
-        if (!selectedAssignees.Any())
-        {
-            await JSRuntime.InvokeVoidAsync("alert", "Vui lòng chọn ít nhất một người được giao!");
-            return;
-        }
-
-        // VALIDATE NGÀY
-        if (newTask.AssignDate.Date < DateTime.Today)
-        {
-            await JSRuntime.InvokeVoidAsync("alert", "Ngày giao không được trước ngày hiện tại!");
-            return;
-        }
-
-        if (newTask.DueDate.Date < newTask.AssignDate.Date)
-        {
-            await JSRuntime.InvokeVoidAsync("alert", "Ngày hết hạn không được trước ngày giao!");
-            return;
-        }
-
+        // Validate title
         if (string.IsNullOrWhiteSpace(newTask.Title))
         {
-            await JSRuntime.InvokeVoidAsync("alert", "Vui lòng nhập tên công việc!");
+            showTitleError = true;
+            hasError = true;
+        }
+
+        // Validate assignee
+        if (!selectedAssignees.Any())
+        {
+            showAssigneeError = true;
+            hasError = true;
+        }
+
+        // Validate dates
+        if (newTask.AssignDate.Date < DateTime.Today || newTask.DueDate.Date < newTask.AssignDate.Date)
+        {
+            showDateError = true;
+            hasError = true;
+        }
+
+        // Validate group
+        if (string.IsNullOrEmpty(GroupId) || currentGroup == null)
+        {
+            validationError = "Lỗi: Không tìm thấy thông tin phòng!";
+            hasError = true;
+        }
+
+        if (hasError)
+        {
+            StateHasChanged();
             return;
         }
 
@@ -561,7 +601,7 @@
                     {
                         Id = Guid.NewGuid().ToString(),
                         Title = newTask.Title.Trim(),
-                        AssigneeUsername = assignee.Username, // Sửa: AssigneeUsername thay vì Assignee
+                        AssigneeUsername = assignee.Username,
                         Department = assignee.Department,
                         Description = newTask.Description?.Trim() ?? "",
                         AssignDate = newTask.AssignDate,
@@ -570,7 +610,8 @@
                         CreatedBy = newTask.CreatedBy,
                         CreatedAt = DateTime.Now,
                         UpdatedAt = DateTime.Now,
-                        GroupId = GroupId
+                        GroupId = GroupId,
+                        GroupName = currentGroup?.Name
                     };
 
                     Console.WriteLine($"➕ ADDING TASK FOR: {assignee.Username}");

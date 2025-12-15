@@ -24,7 +24,7 @@
             <div class="header-actions-group">
                 <!-- Nút Thành Viên -->
                 <button class="members-btn" @onclick="ToggleMembersList">
-                    @(showMembers ? "Đóng Thành Viên" : "Thành Viên")
+                    @(showMembers ? " Thành Viên" : "Thành Viên")
                 </button>
                 <button class="delete-room-btn" @onclick="ShowDeleteConfirmation">
                     Xóa Phòng
@@ -114,12 +114,12 @@
                                                 <div class="member-status">
                                                     @if (member.IsCreator)
                                                     {
-                                                        <span class="badge creator">📞</span>
+                                                        <span class="badge creator"></span>
                                                     }
                                                     else
                                                     {
                                                         <div class="member-actions">
-                                                            <span class="badge member">👤</span>
+                                                            <span class="badge member"></span>
                                                             <!-- Nút xóa thành viên -->
                                                             <button class="btn-delete-member"
                                                                     @onclick="() => ShowDeleteMemberConfirmation(member)"
