@@ -60,7 +60,16 @@ namespace TodoWeb.Services
                     // Cập nhật các thuộc tính
                     existingGroup.Name = group.Name;
                     existingGroup.Code = group.Code;
-                    existingGroup.Members = group.Members;
+
+                    // Loại bỏ trùng lặp trong members
+                    if (group.Members != null)
+                    {
+                        existingGroup.Members = group.Members
+                            .Where(m => !string.IsNullOrEmpty(m))
+                            .Distinct()
+                            .ToList();
+                    }
+
                     existingGroup.UpdatedAt = DateTime.Now;
 
                     var groupsJson = JsonSerializer.Serialize(groups);
@@ -103,8 +112,17 @@ namespace TodoWeb.Services
                 group.CreatedAt = DateTime.Now;
                 group.UpdatedAt = DateTime.Now;
 
-                // Thêm creator vào danh sách thành viên
-                group.Members.Add(group.CreatorUsername);
+                // Loại bỏ trùng lặp trong members và thêm creator
+                group.Members = group.Members
+                    .Where(m => !string.IsNullOrEmpty(m))
+                    .Distinct()
+                    .ToList();
+
+                // Thêm creator vào danh sách thành viên nếu chưa có
+                if (!group.Members.Contains(group.CreatorUsername))
+                {
+                    group.Members.Add(group.CreatorUsername);
+                }
 
                 groups.Add(group);
                 var groupsJson = JsonSerializer.Serialize(groups);
@@ -126,14 +144,26 @@ namespace TodoWeb.Services
                 var groups = await GetGroupsAsync();
                 var group = groups.FirstOrDefault(g => g.Code == code);
 
-                if (group != null && !group.Members.Contains(username))
+                if (group != null)
                 {
-                    group.Members.Add(username);
-                    group.UpdatedAt = DateTime.Now;
+                    // Loại bỏ trùng lặp và thêm thành viên
+                    var members = group.Members
+                        .Where(m => !string.IsNullOrEmpty(m))
+                        .Distinct()
+                        .ToList();
 
-                    var groupsJson = JsonSerializer.Serialize(groups);
-                    await _jsRuntime.InvokeVoidAsync("localStorage.setItem", "groups", groupsJson);
+                    if (!members.Contains(username))
+                    {
+                        members.Add(username);
+                        group.Members = members;
+                        group.UpdatedAt = DateTime.Now;
 
+                        var groupsJson = JsonSerializer.Serialize(groups);
+                        await _jsRuntime.InvokeVoidAsync("localStorage.setItem", "groups", groupsJson);
+
+                        return true;
+                    }
+                    // Nếu đã là thành viên, vẫn trả về true
                     return true;
                 }
                 return false;
@@ -178,7 +208,9 @@ namespace TodoWeb.Services
         public async Task<List<Group>> GetUserGroupsAsync(string username)
         {
             var groups = await GetGroupsAsync();
-            return groups.Where(g => g.Members.Contains(username)).ToList();
+            return groups
+                .Where(g => g.Members != null && g.Members.Any(m => m == username))
+                .ToList();
         }
 
         // Lấy groups được tạo bởi user
@@ -197,7 +229,11 @@ namespace TodoWeb.Services
                 if (group == null) return new List<GroupMember>();
 
                 var members = new List<GroupMember>();
-                foreach (var username in group.Members)
+                var uniqueUsernames = group.Members
+                    .Where(m => !string.IsNullOrEmpty(m))
+                    .Distinct();
+
+                foreach (var username in uniqueUsernames)
                 {
                     var member = new GroupMember
                     {
@@ -224,14 +260,26 @@ namespace TodoWeb.Services
                 var groups = await GetGroupsAsync();
                 var group = groups.FirstOrDefault(g => g.Id == groupId);
 
-                if (group != null && !group.Members.Contains(username))
+                if (group != null)
                 {
-                    group.Members.Add(username);
-                    group.UpdatedAt = DateTime.Now;
+                    // Loại bỏ trùng lặp và thêm thành viên
+                    var members = group.Members
+                        .Where(m => !string.IsNullOrEmpty(m))
+                        .Distinct()
+                        .ToList();
 
-                    var groupsJson = JsonSerializer.Serialize(groups);
-                    await _jsRuntime.InvokeVoidAsync("localStorage.setItem", "groups", groupsJson);
+                    if (!members.Contains(username))
+                    {
+                        members.Add(username);
+                        group.Members = members;
+                        group.UpdatedAt = DateTime.Now;
 
+                        var groupsJson = JsonSerializer.Serialize(groups);
+                        await _jsRuntime.InvokeVoidAsync("localStorage.setItem", "groups", groupsJson);
+
+                        return true;
+                    }
+                    // Nếu đã là thành viên, vẫn trả về true
                     return true;
                 }
                 return false;

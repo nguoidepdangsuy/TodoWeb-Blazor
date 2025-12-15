@@ -16,10 +16,8 @@ namespace TodoWeb.Services
         Task<bool> DeleteTaskAsync(string id);
         Task<bool> ToggleTaskCompletionAsync(string id);
         Task<List<string>> GetDepartmentsAsync();
+        Task<List<WorkTask>> GetTasksAsync(); 
 
-        // Giữ lại phương thức cũ cho tương thích
-        Task<List<WorkTask>> GetTasksAsync(); // Sửa: bỏ context user
-
-        Task<bool> AddTaskAsync(WorkTask task); // Sửa: không gọi CreateTaskAsync trực tiếp
+        Task<bool> AddTaskAsync(WorkTask task); 
     }
 }

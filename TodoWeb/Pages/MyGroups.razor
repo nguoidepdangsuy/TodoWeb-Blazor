@@ -132,7 +132,6 @@
                                             <span class="info-value code">@group.Code</span>
                                         </div>
                                         <div class="info-item">
-                                            <!-- Sửa: CreatorUsername thay vì Creator -->
                                             <span class="info-label">Người tạo:</span>
                                             <span class="info-value">@group.CreatorUsername</span>
                                         </div>
@@ -229,7 +228,6 @@
             createdGroups = await GroupService.GetCreatedGroupsAsync(user.Username);
             // Lấy phòng đã tham gia (loại bỏ phòng đã tạo)
             var allJoinedGroups = await GroupService.GetUserGroupsAsync(user.Username);
-            // Sửa: CreatorUsername thay vì Creator
             joinedGroups = allJoinedGroups.Where(g => g.CreatorUsername != user.Username).ToList();
         }
     }

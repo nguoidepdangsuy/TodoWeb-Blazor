@@ -9,7 +9,7 @@
 @implements IDisposable
 
 <div class="assignee-room-page" style="padding: 0; margin: 0;">
-    <!-- Header  -->
+    <!-- Header -->
     <div class="room-header-actions">
         <!-- Thêm nút Thành Viên ở đây -->
         <button class="members-btn" @onclick="ToggleMembersList">
@@ -41,20 +41,20 @@
                         <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
                     </div>
                 </div>
-            </div>
 
-            <!-- Navigation Menu trong Sidebar -->
-            <nav class="sidebar-nav">
-                <a href="/home" class="nav-item">
-                    Trang Chủ
-                </a>
-                <a href="/my-groups" class="nav-item">
-                    Quản Lý Phòng
-                </a>
-                <a href="/profile" class="nav-item">
-                    Cài Đặt
-                </a>
-            </nav>
+                <!-- Navigation Menu trong Sidebar -->
+                <nav class="sidebar-nav">
+                    <a href="/home" class="nav-item">
+                        Trang Chủ
+                    </a>
+                    <a href="/my-groups" class="nav-item">
+                        Quản Lý Phòng
+                    </a>
+                    <a href="/profile" class="nav-item">
+                        Cài Đặt
+                    </a>
+                </nav>
+            </div>
         </aside>
 
         <!-- Main Content -->
@@ -75,7 +75,7 @@
                     <div class="members-modal" @onclick:stopPropagation="true">
                         <div class="modal-header">
                             <h3>Thành viên trong phòng (@roomMembers.Count)</h3>
-                            <button class="btn-close-modal" @onclick="ToggleMembersList">×</button>
+                            <button class="btn-close-modal" @onclick="ToggleMembersList"></button>
                         </div>
                         <div class="modal-body">
                             @if (isLoadingMembers)
@@ -99,17 +99,17 @@
                                                 <div class="member-department">@member.Department</div>
                                                 @if (member.IsCreator)
                                                 {
-                                                    <div class="member-role">👑 Chủ phòng</div>
+                                                    <div class="member-role"> Chủ phòng</div>
                                                 }
                                             </div>
                                             <div class="member-status">
                                                 @if (member.IsCreator)
                                                 {
-                                                    <span class="badge creator">👑</span>
+                                                    <span class="badge creator"></span>
                                                 }
                                                 else
                                                 {
-                                                    <span class="badge member">✓</span>
+                                                    <span class="badge member"></span>
                                                 }
                                             </div>
                                         </div>
@@ -152,13 +152,13 @@
                         <h3>Lịch công việc</h3>
                         <div class="calendar-controls">
                             <button class="btn btn-outline-primary" @onclick="PreviousMonth" disabled="@isChangingMonth">
-                                ‹
+                                &lt;
                             </button>
                             <span class="current-month @(isChangingMonth ? "month-changing" : "")">
                                 @currentDate.ToString("MMMM yyyy")
                             </span>
                             <button class="btn btn-outline-primary" @onclick="NextMonth" disabled="@isChangingMonth">
-                                ›
+                                &gt;
                             </button>
                         </div>
                     </div>
@@ -172,12 +172,14 @@
                         <div class="calendar-days">
                             @foreach (var day in calendarDays)
                             {
-                                <div class="calendar-day @(day.IsCurrentMonth ? "" : "other-month") @(day.Date == DateTime.Today ? "today" : "")">
+                                <div class="calendar-day @(day.IsCurrentMonth ? "" : "other-month")
+                                         @(day.Date == DateTime.Today ? "today" : "")">
                                     <div class="day-number">@day.Date.Day</div>
                                     <div class="day-tasks">
                                         @foreach (var task in GetTasksForDay(day.Date))
                                         {
-                                            <div class="task-indicator @GetTaskPriorityClass(task) @GetTaskColorClass(task)"
+                                            <div class="task-indicator @GetTaskPriorityClass(task)
+                                                         @GetTaskColorClass(task)"
                                                  @onclick="() => ViewTaskDetail(task)"
                                                  title="@task.Title - Hạn: @task.DueDate.ToString("dd/MM")">
                                                 <span class="task-title">@GetShortTaskTitle(task.Title)</span>
@@ -206,7 +208,8 @@
                     <div class="tasks-list">
                         @foreach (var task in allTasks)
                         {
-                            <div class="task-item @GetTaskPriorityClass(task) @GetTaskColorClass(task)" @onclick="() => ViewTaskDetail(task)">
+                            <div class="task-item @GetTaskPriorityClass(task)
+                                     @GetTaskColorClass(task)" @onclick="() => ViewTaskDetail(task)">
                                 <div class="task-color @GetTaskColorClass(task)"></div>
                                 <div class="task-content">
                                     <!-- Tên task lớn hơn -->
@@ -215,11 +218,11 @@
                                         <span>Hạn: @task.DueDate.ToString("dd/MM/yyyy")</span>
                                         @if (IsTaskOverdue(task))
                                         {
-                                            <span class="deadline-overdue"> ĐÃ QUÁ HẠN!</span>
+                                            <span class="deadline-overdue">ĐÃ QUÁ HẠN!</span>
                                         }
                                         else if (IsDeadlineApproaching(task))
                                         {
-                                            <span class="deadline-warning"> Sắp hết hạn!</span>
+                                            <span class="deadline-warning">Sắp hết hạn!</span>
                                         }
                                     </div>
                                     <div class="task-progress">
@@ -261,17 +264,18 @@
             <div class="modal-header">
                 <div class="header-content">
                     <!-- Tên task lớn hơn trong modal -->
-                    <h3 class="modal-title-xlarge">@selectedTask.Title</h3>
+                    <h3 class="modal-title-large">@selectedTask.Title</h3>
                     <!-- Hiển thị trạng thái hoàn thành ở header -->
                     @if (selectedTask.IsCompleted)
                     {
                         <div class="completion-status-header">
-                            <span class="badge bg-success">✅ Đã hoàn thành</span>
+                            <span class="badge bg-success">Đã hoàn thành</span>
                         </div>
                     }
                 </div>
-                <button type="button" class="btn-close" @onclick="CloseTaskDetail">×</button>
+                <button type="button" class="btn-close" @onclick="CloseTaskDetail"></button>
             </div>
+
             <div class="modal-body">
                 <div class="task-detail-content">
                     <div class="task-info-section">
@@ -280,7 +284,8 @@
                                 <strong>Người giao:</strong> @selectedTask.CreatedBy
                             </div>
                             <div class="info-item">
-                                <strong>Ngày giao:</strong> @selectedTask.AssignDate.ToString("dd/MM/yyyy")
+                                <strong>Ngày giao:</strong>
+                                @selectedTask.AssignDate.ToString("dd/MM/yyyy")
                             </div>
                             <div class="info-item">
                                 <strong>Hạn hoàn thành:</strong>
@@ -313,7 +318,6 @@
                             </div>
                         }
                     </div>
-
                     <!-- File Submission Section - Góc phải -->
                     <div class="file-submission-section">
                         <div class="file-submission-header">
@@ -324,7 +328,6 @@
                                            accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" />
                                 <span>+ Thêm file</span>
                             </label>
-
                             <!-- Nút đến trang nộp bài riêng -->
                             <button class="btn btn-primary ms-2"
                                     @onclick="NavigateToSubmitPage">
@@ -348,7 +351,10 @@
                                                 <small class="file-size">(@submission.FormattedFileSize)</small>
                                                 <div class="file-meta">
                                                     <small>Người nộp: @submission.SubmittedBy</small>
-                                                    <small>Thời gian: @submission.SubmittedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                                    <small>
+                                                        Thời gian:
+                                                        @submission.SubmittedAt.ToString("dd/MM/yyyy HH:mm")
+                                                    </small>
                                                 </div>
                                             </div>
                                         </div>
@@ -356,7 +362,7 @@
                                             <button class="btn btn-sm btn-outline-primary"
                                                     @onclick="() => DownloadFile(submission)"
                                                     title="Tải xuống">
-                                                📥
+                                                ⬇️
                                             </button>
                                             <button class="btn btn-sm btn-outline-danger delete-btn"
                                                     @onclick="() => DeleteSubmission(submission.Id)"
@@ -380,7 +386,7 @@
                         {
                             <div class="action-section">
                                 <button class="btn btn-success mark-complete-btn" @onclick="MarkAsCompleted">
-                                    <span class="btn-icon">✓</span>
+                                    <span class="btn-icon"></span>
                                     Đánh dấu hoàn thành
                                 </button>
                                 <small class="action-note">Sau khi đánh dấu hoàn thành, bạn không thể chỉnh sửa file đã nộp</small>
@@ -437,7 +443,7 @@
             {
                 await LoadTasks();
                 StateHasChanged();
-                await JSRuntime.InvokeVoidAsync("console.log", "🔄 Tự động làm mới danh sách task");
+                await JSRuntime.InvokeVoidAsync("console.log", "📍 Tự động làm mới danh sách task");
             });
         }, null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
     }
@@ -454,7 +460,8 @@
         {
             try
             {
-                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem",
+                    $"profile_{user.Username}");
                 if (!string.IsNullOrEmpty(profileJson))
                 {
                     currentProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
@@ -467,7 +474,7 @@
                         Email = user.Email ?? "",
                         Phone = "Chưa cập nhật",
                         Department = "Nhân viên",
-                        Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                        Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={(user.Username?[0] ?? "U"[0])}"
                     };
                 }
             }
@@ -495,7 +502,6 @@
                 Navigation.NavigateTo("/my-groups");
                 return;
             }
-
             // Debug log để xem thông tin group
             await JSRuntime.InvokeVoidAsync("console.log",
                 $"Group loaded: {currentGroup.Name}, Members count: {currentGroup.Members?.Count ?? 0}, Creator: {currentGroup.CreatorUsername}");
@@ -543,14 +549,19 @@
             await JSRuntime.InvokeVoidAsync("console.log",
                 $"Loading members for group {currentGroup.Name}: {string.Join(", ", currentGroup.Members)}");
 
+            // Tạo danh sách unique members (loại bỏ trùng lặp)
+            var uniqueMemberUsernames = currentGroup.Members
+                .Where(m => !string.IsNullOrEmpty(m))
+                .Distinct()
+                .ToList();
+
+            Console.WriteLine($"Unique members in group: {string.Join(", ", uniqueMemberUsernames)}");
+
             // Thêm tất cả thành viên, bao gồm cả creator
-            foreach (var memberUsername in currentGroup.Members)
+            foreach (var memberUsername in uniqueMemberUsernames)
             {
                 try
                 {
-                    if (string.IsNullOrEmpty(memberUsername))
-                        continue;
-
                     var memberProfile = await LoadMemberProfile(memberUsername);
                     var isCreator = memberUsername == currentGroup.CreatorUsername;
 
@@ -563,7 +574,7 @@
                     });
 
                     await JSRuntime.InvokeVoidAsync("console.log",
-                        $"Added member: {memberUsername}, IsCreator: {isCreator}");
+                        $"Added member: {memberUsername}, isCreator: {isCreator}");
                 }
                 catch (Exception ex)
                 {
@@ -602,8 +613,8 @@
             return "https://via.placeholder.com/40/4285f4/ffffff?text=U";
 
         var firstChar = username.Length > 0 ? username[0] : 'U';
-        var color = isCreator ? "ff6b35" : "4285f4"; // Màu cam cho creator, xanh dương cho member
-        return $"https://via.placeholder.com/40/{color}/ffffff?text={firstChar}";
+        var color = isCreator ? "#f6b335" : "#4285f4"; // Màu cam cho creator, xanh dương cho member
+        return $"https://via.placeholder.com/40/{color.Replace("#", "")}/ffffff?text={firstChar}";
     }
 
     private void ToggleMembersList()
@@ -620,7 +631,8 @@
     {
         try
         {
-            var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{username}");
+            var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem",
+                $"profile_{username}");
             if (!string.IsNullOrEmpty(profileJson))
             {
                 return System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
@@ -664,15 +676,15 @@
                 .ToList();
 
             await JSRuntime.InvokeVoidAsync("console.log",
-                $" LOADING FROM SERVICE: {allTasksFromService.Count} tasks total");
+                $"LOADING FROM SERVICE: {allTasksFromService.Count} tasks total");
             await JSRuntime.InvokeVoidAsync("console.log",
-                $" FILTERED FOR ROOM {GroupId}: {allTasks.Count} tasks");
+                $"FILTERED FOR ROOM {GroupId}: {allTasks.Count} tasks");
 
             // DEBUG: Log chi tiết
             foreach (var task in allTasks)
             {
                 await JSRuntime.InvokeVoidAsync("console.log",
-                    $" TASK IN CURRENT ROOM: '{task.Title}', Group: {task.GroupId}, Assignee: {task.AssigneeUsername}");
+                    $"TASK IN CURRENT ROOM: '{task.Title}', Group: {task.GroupId}, Assignee: {task.AssigneeUsername}");
             }
 
             completedTasks = allTasks.Where(t => t.IsCompleted).ToList();
@@ -737,7 +749,7 @@
     private List<WorkTask> GetTasksForDay(DateTime date)
     {
         return allTasks.Where(t =>
-            t.DueDate.Date == date.Date &&  // Chỉ lấy task có ngày hết hạn trùng với ngày được chọn
+            t.DueDate.Date == date.Date && // Chỉ lấy task có ngày hết hạn trùng với ngày được chọn
             !t.IsCompleted
         ).ToList();
     }
@@ -798,8 +810,7 @@
         if (file != null && selectedTask != null)
         {
             // Tạo URL upload tạm thời (trong thực tế sẽ upload lên Supabase Storage)
-            var fileUrl = $"uploads/{Guid.NewGuid()}_{file.Name}";
-
+            var fileUrl = $"uploads/{Guid.NewGuid()}{Path.GetExtension(file.Name)}";
             var submission = new TaskSubmission
             {
                 Id = Guid.NewGuid().ToString(),
@@ -819,7 +830,6 @@
                 submissions.Add(submission);
                 StateHasChanged();
                 await JSRuntime.InvokeVoidAsync("alert", $"Đã tải lên file: {file.Name}");
-
                 // Debug log
                 await JSRuntime.InvokeVoidAsync("console.log",
                     $"File uploaded: {file.Name} for task: {selectedTask.Title} by user: {currentUsername}");
@@ -852,10 +862,10 @@
             ".pdf" => "📄",
             ".doc" or ".docx" => "📝",
             ".xls" or ".xlsx" => "📊",
-            ".ppt" or ".pptx" => "📽️",
+            ".ppt" or ".pptx" => "📑",
             ".zip" or ".rar" => "📦",
             ".jpg" or ".jpeg" or ".png" or ".gif" => "🖼️",
-            ".txt" => "📄",
+            ".txt" => "📃",
             _ => "📎"
         };
     }
@@ -877,7 +887,6 @@
                     var lastSubmission = submissions.Last();
                     await TaskSubmissionService.MarkSubmissionAsCompletedAsync(lastSubmission.Id);
                 }
-
                 await LoadTasks();
                 CloseTaskDetail();
                 await JSRuntime.InvokeVoidAsync("alert", "Đã đánh dấu công việc hoàn thành!");
