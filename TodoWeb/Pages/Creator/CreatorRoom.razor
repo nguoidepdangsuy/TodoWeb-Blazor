@@ -1,0 +1,846 @@
+﻿@page "/creator/room/{groupId}"
+@inject ITaskService TaskService
+@inject IGroupService GroupService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject ITaskSubmissionService TaskSubmissionService
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Creator Room - TodoWeb</title>
+</head>
+<body>
+    <div class="creator-room-page">
+        <!-- Creator Room Header -->
+        <div class="room-header-actions">
+            <button class="add-task-btn-main" @onclick="NavigateToAddTask">
+                <span>➕</span>
+                Add Task
+            </button>
+            <div class="header-actions-group">
+                <!-- Nút Thành Viên -->
+                <button class="members-btn" @onclick="ToggleMembersList">
+                    @(showMembers ? " Thành Viên" : "Thành Viên")
+                </button>
+                <button class="delete-room-btn" @onclick="ShowDeleteConfirmation">
+                    Xóa Phòng
+                </button>
+                <button class="logout-btn" @onclick="SignOut">
+                    Đăng Xuất
+                </button>
+            </div>
+        </div>
+
+        <!-- Sidebar và Main Content -->
+        <div class="room-layout">
+            <!-- Sidebar -->
+            <aside class="profile-sidebar">
+                <div class="profile-card">
+                    <div class="profile-header">
+                        <div class="profile-avatar">
+                            <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+                        </div>
+                        <div class="profile-name">@currentProfile?.Username</div>
+                        <div class="profile-email">@currentProfile?.Email</div>
+                    </div>
+                    <div class="profile-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Số điện thoại</span>
+                            <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Phòng ban</span>
+                            <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Menu trong Sidebar -->
+                <nav class="sidebar-nav">
+                    <a href="/home" class="nav-item">
+                        Trang Chủ
+                    </a>
+                    <a href="/my-groups" class="nav-item">
+                        Quản Lý Phòng
+                    </a>
+                    <a href="/profile" class="nav-item">
+                        Cài Đặt
+                    </a>
+                </nav>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="room-main-content">
+                <!-- Room Info -->
+                <div class="room-info-card">
+                    <h1 class="room-title">@currentGroup?.Name</h1>
+                    <div class="room-details">
+                        <span class="room-badge creator-badge">PHÒNG ĐÃ TẠO</span>
+                        <span class="room-code">Mã phòng: <strong>@currentGroup?.Code</strong></span>
+                    </div>
+                </div>
+
+                <!-- Modal Thành Viên -->
+                @if (showMembers)
+                {
+                    <div class="modal-overlay show" @onclick="ToggleMembersList">
+                        <div class="members-modal" @onclick:stopPropagation="true">
+                            <div class="modal-header">
+                                <h3>Thành viên trong phòng (@roomMembers.Count)</h3>
+                                <button class="btn-close-modal" @onclick="ToggleMembersList">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="members-list">
+                                    @if (roomMembers.Any())
+                                    {
+                                        @foreach (var member in roomMembers)
+                                        {
+                                            <div class="member-item">
+                                                <div class="member-avatar">
+                                                    <img src="@member.Avatar" alt="@member.Username" />
+                                                </div>
+                                                <div class="member-info">
+                                                    <div class="member-name">@member.Username</div>
+                                                    <div class="member-department">@member.Department</div>
+                                                    @if (member.IsCreator)
+                                                    {
+                                                        <div class="member-role">Chủ phòng</div>
+                                                    }
+                                                </div>
+                                                <div class="member-status">
+                                                    @if (member.IsCreator)
+                                                    {
+                                                        <span class="badge creator">👑</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="member-actions">
+                                                            <span class="badge member">✓</span>
+                                                            <!-- Nút xóa thành viên -->
+                                                            <button class="btn-delete-member"
+                                                                    @onclick="() => ShowDeleteMemberConfirmation(member)"
+                                                                    title="Xóa thành viên">
+                                                                🗑️
+                                                            </button>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <div class="empty-members">
+                                            <p>Chưa có thành viên nào trong phòng</p>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Tasks Split Layout - Chia 2 bên -->
+                <div class="tasks-split-container">
+                    <!-- Column 1: Task chưa hoàn thành -->
+                    <div class="task-column pending-column">
+                        <div class="column-header">
+                            <h3> Công việc chưa hoàn thành</h3>
+                            <span class="task-count">@pendingTasks.Count</span>
+                        </div>
+                        <div class="tasks-list">
+                            @foreach (var task in pendingTasks)
+                            {
+                                <div class="task-card pending">
+                                    <!-- Nút xóa task ở góc trên bên phải -->
+                                    <button class="delete-task-btn" @onclick="() => ShowDeleteTaskConfirmation(task)" title="Xóa task">
+                                        🗑️
+                                    </button>
+                                    <div class="task-content" @onclick="() => ViewTaskDetail(task)">
+                                        <h4 class="task-title">@task.Title</h4>
+                                        <div class="task-meta">
+                                            <span class="assignee"> @task.Assignee</span>
+                                            <span class="department"> @task.Department</span>
+                                        </div>
+                                        <div class="task-dates">
+                                            <small> @task.AssignDate.ToString("dd/MM/yyyy")</small>
+                                            <small> @task.DueDate.ToString("dd/MM/yyyy")</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            @if (!pendingTasks.Any())
+                            {
+                                <div class="empty-state">
+                                    <p> Không có task nào đang chờ!</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Task đã hoàn thành -->
+                    <div class="task-column completed-column">
+                        <div class="column-header">
+                            <h3> Công việc đã hoàn thành</h3>
+                            <span class="task-count">@completedTasks.Count</span>
+                        </div>
+                        <div class="tasks-list">
+                            @foreach (var task in completedTasks)
+                            {
+                                <div class="task-card completed">
+                                    <!-- Nút xóa task ở góc trên bên phải -->
+                                    <button class="delete-task-btn" @onclick="() => ShowDeleteTaskConfirmation(task)" title="Xóa task">
+                                        🗑️
+                                    </button>
+                                    <div class="task-content" @onclick="() => ViewCompletedTaskDetail(task)">
+                                        <h4 class="task-title">@task.Title</h4>
+                                        <div class="task-meta">
+                                            <span class="assignee"> @task.Assignee</span>
+                                            <span class="department"> @task.Department</span>
+                                        </div>
+                                        <div class="task-dates">
+                                            <small> @task.CompletedDate?.ToString("dd/MM/yyyy")</small>
+                                        </div>
+                                        <div class="completion-badge">
+                                            ĐÃ HOÀN THÀNH
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            @if (!completedTasks.Any())
+                            {
+                                <div class="empty-state">
+                                    <p> Chưa có task nào được hoàn thành</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal xác nhận xóa phòng -->
+    @if (showDeleteModal)
+    {
+        <div class="modal-overlay">
+            <div class="delete-confirmation-modal">
+                <div class="modal-header">
+                    <h3>Xác nhận xóa phòng</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="warning-icon">⚠️</div>
+                    <p>Bạn có chắc chắn muốn xóa phòng <strong>@currentGroup?.Name</strong>?</p>
+                    <p class="warning-text">Hành động này không thể hoàn tác. Tất cả task và dữ liệu trong phòng sẽ bị xóa vĩnh viễn.</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-cancel" @onclick="CancelDelete" disabled="@isDeleting">
+                        Hủy
+                    </button>
+                    <button class="btn btn-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
+                        @if (isDeleting)
+                        {
+                            <span>Đang xóa...</span>
+                        }
+                        else
+                        {
+                            <span>Xóa Phòng</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Modal xác nhận xóa task -->
+    @if (showDeleteTaskModal && taskToDelete != null)
+    {
+        <div class="modal-overlay">
+            <div class="delete-confirmation-modal">
+                <div class="modal-header">
+                    <h3>Xác nhận xóa task</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="warning-icon">⚠️</div>
+                    <p>Bạn có chắc chắn muốn xóa task <strong>@taskToDelete.Title</strong>?</p>
+                    <p class="warning-text">Hành động này không thể hoàn tác.</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-cancel" @onclick="CancelDeleteTask">
+                        Hủy
+                    </button>
+                    <button class="btn btn-danger" @onclick="ConfirmDeleteTask">
+                        Xóa Task
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Modal xác nhận xóa thành viên -->
+    @if (showDeleteMemberModal && memberToDelete != null)
+    {
+        <div class="modal-overlay">
+            <div class="delete-confirmation-modal">
+                <div class="modal-header">
+                    <h3>Xác nhận xóa thành viên</h3>
+                </div>
+                <div class="modal-body">
+                    <div class="warning-icon">⚠️</div>
+                    <p>Bạn có chắc chắn muốn xóa thành viên <strong>@memberToDelete.Username</strong> khỏi phòng?</p>
+                    <p class="warning-text">Thành viên này sẽ không thể truy cập phòng và các task liên quan nữa.</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-cancel" @onclick="CancelDeleteMember">
+                        Hủy
+                    </button>
+                    <button class="btn btn-danger" @onclick="ConfirmDeleteMember">
+                        Xóa Thành Viên
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Modal chi tiết task đã hoàn thành -->
+    @if (showCompletedTaskDetail && selectedCompletedTask != null)
+    {
+        <div class="modal-overlay show" @onclick="CloseCompletedTaskDetail">
+            <div class="task-detail-modal completed-task-modal" @onclick:stopPropagation="true">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div class="header-content">
+                            <h3 class="modal-title">@selectedCompletedTask.Title</h3>
+                            <div class="completion-status-header">
+                                <span class="badge bg-success">✅ Đã hoàn thành</span>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close" @onclick="CloseCompletedTaskDetail">×</button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="task-detail-content">
+                            <!-- Thông tin task -->
+                            <div class="task-info-section">
+                                <div class="info-grid">
+                                    <div class="info-item">
+                                        <strong>Người được giao:</strong> @selectedCompletedTask.Assignee
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Phòng ban:</strong> @selectedCompletedTask.Department
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Ngày giao:</strong> @selectedCompletedTask.AssignDate.ToString("dd/MM/yyyy")
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Hạn hoàn thành:</strong> @selectedCompletedTask.DueDate.ToString("dd/MM/yyyy")
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Ngày hoàn thành:</strong> @selectedCompletedTask.CompletedDate?.ToString("dd/MM/yyyy")
+                                    </div>
+                                    <div class="info-item">
+                                        <strong>Phòng:</strong> @currentGroup?.Name
+                                    </div>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(selectedCompletedTask.Description))
+                                {
+                                    <div class="task-description-section">
+                                        <strong>Mô tả công việc:</strong>
+                                        <p class="task-description">@selectedCompletedTask.Description</p>
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- File đã nộp -->
+                            <div class="file-submission-section">
+                                <div class="file-submission-header">
+                                    <h5>File đã nộp</h5>
+                                </div>
+
+                                @if (completedTaskSubmissions.Any())
+                                {
+                                    <div class="submissions-list">
+                                        @foreach (var submission in completedTaskSubmissions)
+                                        {
+                                            <div class="submission-item">
+                                                <div class="file-info">
+                                                    <span class="file-icon">📎</span>
+                                                    <div class="file-details">
+                                                        <span class="file-name">@submission.FileName</span>
+                                                        <small class="file-size">(@FormatFileSize(submission.FileSize))</small>
+                                                        <div class="file-meta">
+                                                            <small>Người nộp: @submission.SubmittedBy</small>
+                                                            <small>Ngày nộp: @submission.SubmittedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="file-actions">
+                                                    <button class="btn btn-sm btn-outline-primary"
+                                                            @onclick="() => DownloadFile(submission)"
+                                                            title="Tải xuống">
+                                                        📥
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="no-files">
+                                        <p>Không có file nào được nộp</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CloseCompletedTaskDetail">
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</body>
+</html>
+
+@code {
+    [Parameter]
+    public string GroupId { get; set; } = string.Empty;
+
+    private Group? currentGroup;
+    private UserProfile? currentProfile;
+    private List<WorkTask> allTasks = new();
+    private List<WorkTask> completedTasks = new();
+    private List<WorkTask> pendingTasks = new();
+
+    // Biến cho chức năng xóa phòng
+    private bool showDeleteModal = false;
+    private bool isDeleting = false;
+
+    // Biến cho chức năng xóa task
+    private bool showDeleteTaskModal = false;
+    private WorkTask? taskToDelete = null;
+
+    // Biến cho chức năng xóa thành viên
+    private bool showDeleteMemberModal = false;
+    private MemberInfo? memberToDelete = null;
+
+    // Biến cho chi tiết task đã hoàn thành
+    private bool showCompletedTaskDetail = false;
+    private WorkTask? selectedCompletedTask = null;
+    private List<TaskSubmission> completedTaskSubmissions = new();
+
+    // Biến cho thành viên phòng
+    private List<MemberInfo> roomMembers = new();
+    private bool showMembers = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserProfile();
+        await LoadGroupData();
+        await LoadTasks();
+        await LoadRoomMembers();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
+                }
+                else
+                {
+                    currentProfile = new UserProfile
+                        {
+                            Username = user.Username,
+                            Email = user.Email ?? "",
+                            Phone = "Chưa cập nhật",
+                            Department = "Nhân viên",
+                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                        };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                    {
+                        Username = user.Username ?? "User",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                    };
+            }
+        }
+    }
+
+    private async Task LoadGroupData()
+    {
+        currentGroup = await GroupService.GetGroupAsync(GroupId);
+        if (currentGroup == null)
+        {
+            Navigation.NavigateTo("/my-groups");
+        }
+    }
+
+    private async Task LoadTasks()
+    {
+        var tasks = await TaskService.GetTasksAsync();
+        allTasks = tasks.Where(t => t.GroupId == GroupId).ToList();
+        completedTasks = allTasks.Where(t => t.IsCompleted).ToList();
+        pendingTasks = allTasks.Where(t => !t.IsCompleted).ToList();
+        StateHasChanged();
+    }
+
+    private async Task ViewCompletedTaskDetail(WorkTask task)
+    {
+        selectedCompletedTask = task;
+        completedTaskSubmissions = await TaskSubmissionService.GetSubmissionsAsync(task.Id);
+        showCompletedTaskDetail = true;
+        StateHasChanged();
+    }
+
+    private void CloseCompletedTaskDetail()
+    {
+        showCompletedTaskDetail = false;
+        selectedCompletedTask = null;
+        completedTaskSubmissions.Clear();
+        StateHasChanged();
+    }
+
+    private async Task ViewTaskDetail(WorkTask task)
+    {
+        // Logic xem chi tiết task chưa hoàn thành (nếu cần)
+        await JSRuntime.InvokeVoidAsync("alert", $"Xem chi tiết task: {task.Title}");
+    }
+
+    private async Task DownloadFile(TaskSubmission submission)
+    {
+        try
+        {
+            // Tạo một blob URL để tải file (trong thực tế sẽ là URL thật)
+            var fileContent = $"This is a simulated file content for {submission.FileName}";
+            var fileBytes = System.Text.Encoding.UTF8.GetBytes(fileContent);
+
+            await JSRuntime.InvokeVoidAsync("downloadFile",
+                submission.FileName,
+                Convert.ToBase64String(fileBytes));
+
+            await JSRuntime.InvokeVoidAsync("alert", $"Đã tải xuống file: {submission.FileName}");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi khi tải file: {ex.Message}");
+        }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double len = bytes;
+
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    private void NavigateToAddTask()
+    {
+        Navigation.NavigateTo($"/creator/add-task?groupId={GroupId}");
+    }
+
+    private async Task SignOut()
+    {
+        await AuthService.SignOutAsync();
+        Navigation.NavigateTo("/", true);
+    }
+
+    // Các phương thức cho chức năng xóa phòng
+    private void ShowDeleteConfirmation()
+    {
+        showDeleteModal = true;
+        StateHasChanged();
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (isDeleting) return;
+
+        isDeleting = true;
+        StateHasChanged();
+
+        try
+        {
+            // Xóa tất cả tasks trong phòng trước
+            var tasksInGroup = await TaskService.GetTasksAsync();
+            var tasksToDelete = tasksInGroup.Where(t => t.GroupId == GroupId).ToList();
+
+            foreach (var task in tasksToDelete)
+            {
+                await TaskService.DeleteTaskAsync(task.Id);
+            }
+
+            // Xóa phòng
+            var result = await GroupService.DeleteGroupAsync(GroupId);
+
+            if (result)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Đã xóa phòng thành công!");
+                Navigation.NavigateTo("/my-groups", true);
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi xóa phòng. Vui lòng thử lại!");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi: {ex.Message}");
+        }
+        finally
+        {
+            isDeleting = false;
+            showDeleteModal = false;
+            StateHasChanged();
+        }
+    }
+
+    // Các phương thức cho chức năng xóa task
+    private void ShowDeleteTaskConfirmation(WorkTask task)
+    {
+        taskToDelete = task;
+        showDeleteTaskModal = true;
+        StateHasChanged();
+    }
+
+    private void CancelDeleteTask()
+    {
+        showDeleteTaskModal = false;
+        taskToDelete = null;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDeleteTask()
+    {
+        if (taskToDelete == null) return;
+
+        try
+        {
+            var result = await TaskService.DeleteTaskAsync(taskToDelete.Id);
+            if (result)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Đã xóa task thành công!");
+                await LoadTasks(); // Reload lại danh sách task
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi xóa task. Vui lòng thử lại!");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi: {ex.Message}");
+        }
+        finally
+        {
+            showDeleteTaskModal = false;
+            taskToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    // Các phương thức cho chức năng xóa thành viên
+    private void ShowDeleteMemberConfirmation(MemberInfo member)
+    {
+        memberToDelete = member;
+        showDeleteMemberModal = true;
+        StateHasChanged();
+    }
+
+    private void CancelDeleteMember()
+    {
+        showDeleteMemberModal = false;
+        memberToDelete = null;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDeleteMember()
+    {
+        if (memberToDelete == null || currentGroup == null) return;
+
+        try
+        {
+            // Kiểm tra không cho xóa chính mình (chủ phòng)
+            var currentUser = await AuthService.GetCurrentUserAsync();
+            if (memberToDelete.Username == currentUser?.Username)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Bạn không thể xóa chính mình khỏi phòng!");
+                CancelDeleteMember();
+                return;
+            }
+
+            // Xóa tất cả tasks đang được giao cho thành viên này trong phòng hiện tại
+            var tasksAssignedToMember = allTasks.Where(t => t.Assignee == memberToDelete.Username).ToList();
+            foreach (var task in tasksAssignedToMember)
+            {
+                await TaskService.DeleteTaskAsync(task.Id);
+            }
+
+            // Xóa thành viên khỏi nhóm
+            var result = await GroupService.RemoveMemberFromGroupAsync(GroupId, memberToDelete.Username);
+
+            if (result)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", $"Đã xóa thành viên {memberToDelete.Username} khỏi phòng!");
+
+                // Cập nhật lại danh sách thành viên
+                await LoadRoomMembers();
+
+                // Cập nhật lại thông tin nhóm
+                await LoadGroupData();
+
+                // Cập nhật lại danh sách task
+                await LoadTasks();
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi xóa thành viên. Vui lòng thử lại!");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi: {ex.Message}");
+        }
+        finally
+        {
+            showDeleteMemberModal = false;
+            memberToDelete = null;
+            StateHasChanged();
+        }
+    }
+
+    private string GetPriorityClass(WorkTask task)
+    {
+        var daysUntilDue = (task.DueDate - DateTime.Today).TotalDays;
+        if (daysUntilDue <= 1) return "priority-high";
+        if (daysUntilDue <= 3) return "priority-medium";
+        return "priority-low";
+    }
+
+    // Các phương thức cho thành viên phòng
+    private class MemberInfo
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string Avatar { get; set; } = string.Empty;
+        public bool IsCreator { get; set; }
+    }
+
+    private async Task LoadRoomMembers()
+    {
+        if (currentGroup == null) return;
+
+        roomMembers.Clear();
+
+        // Thêm người tạo phòng
+        var creatorProfile = await LoadMemberProfile(currentGroup.Creator);
+        if (creatorProfile != null)
+        {
+            roomMembers.Add(new MemberInfo
+                {
+                    Username = creatorProfile.Username ?? currentGroup.Creator,
+                    Department = creatorProfile.Department ?? "Nhân viên",
+                    Avatar = creatorProfile.Avatar ?? $"https://via.placeholder.com/40/4285f4/ffffff?text={currentGroup.Creator[0]}",
+                    IsCreator = true
+                });
+        }
+
+        // Thêm các thành viên khác
+        foreach (var memberUsername in currentGroup.Members.Where(m => m != currentGroup.Creator))
+        {
+            var memberProfile = await LoadMemberProfile(memberUsername);
+            if (memberProfile != null)
+            {
+                roomMembers.Add(new MemberInfo
+                    {
+                        Username = memberProfile.Username ?? memberUsername,
+                        Department = memberProfile.Department ?? "Nhân viên",
+                        Avatar = memberProfile.Avatar ?? $"https://via.placeholder.com/40/34c759/ffffff?text={memberUsername[0]}",
+                        IsCreator = false
+                    });
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private void ToggleMembersList()
+    {
+        showMembers = !showMembers;
+        if (showMembers)
+        {
+            LoadRoomMembers();
+        }
+        StateHasChanged();
+    }
+
+    private async Task<UserProfile?> LoadMemberProfile(string username)
+    {
+        try
+        {
+            var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{username}");
+            if (!string.IsNullOrEmpty(profileJson))
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
+            }
+        }
+        catch
+        {
+            // Xử lý lỗi nếu cần
+        }
+
+        // Trả về profile mặc định nếu không tìm thấy
+        return new UserProfile
+            {
+                Username = username,
+                Department = "Nhân viên",
+                Avatar = $"https://via.placeholder.com/40/34c759/ffffff?text={username[0]}"
+            };
+    }
+
+    public class UserProfile
+    {
+        public string? Username { get; set; }
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string? Department { get; set; }
+        public string? Avatar { get; set; }
+    }
+}

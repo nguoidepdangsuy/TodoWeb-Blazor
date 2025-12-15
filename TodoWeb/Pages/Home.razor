@@ -1,0 +1,140 @@
+﻿@page "/home"
+@inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject IGroupService GroupService
+
+<div class="home-page">
+    <div class="home-layout">
+        <!-- Sidebar bên trái -->
+        <aside class="profile-sidebar">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+                    </div>
+                    <div class="profile-name">@currentProfile?.Username</div>
+                    <div class="profile-email">@currentProfile?.Email</div>
+                </div>
+                <div class="profile-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Số điện thoại</span>
+                        <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phòng ban</span>
+                        <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Menu trong Sidebar -->
+            <nav class="sidebar-nav">
+                <a href="/home" class="nav-item active">
+                     Trang Chủ
+                </a>
+                @if (hasGroups)
+                {
+                    <a href="/my-groups" class="nav-item">
+                         Quản Lý Phòng
+                        <span class="group-count">@userGroups.Count</span>
+                    </a>
+                }
+                <a href="/profile" class="nav-item">
+                     Cài Đặt
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main content bên phải -->
+        <main class="dashboard-main">
+            <div class="welcome-section">
+                <h1>Chào mừng trở lại, @currentProfile?.Username!</h1>
+                <p>Quản lý công việc của bạn một cách hiệu quả</p>
+            </div>
+
+            <!-- Thông tin cá nhân chi tiết -->
+            <div class="profile-info-section">
+                <div class="info-card">
+                    <h3>Thông tin cá nhân</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <strong>Tên đăng nhập:</strong>
+                            <span>@currentProfile?.Username</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Email:</strong>
+                            <span>@currentProfile?.Email</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Số điện thoại:</strong>
+                            <span>@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                        </div>
+                        <div class="info-item">
+                            <strong>Phòng ban:</strong>
+                            <span>@(currentProfile?.Department ?? "Nhân viên")</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    private UserProfile? currentProfile;
+    private List<Group> userGroups = new();
+    private bool hasGroups = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserProfile();
+        await LoadUserGroups();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
+                }
+                else
+                {
+                    currentProfile = new UserProfile
+                        {
+                            Username = user.Username,
+                            Email = user.Email ?? "",
+                            Phone = "Chưa cập nhật",
+                            Department = "Nhân viên",
+                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                        };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                    {
+                        Username = user.Username ?? "User",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                    };
+            }
+        }
+    }
+
+    private async Task LoadUserGroups()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            userGroups = await GroupService.GetUserGroupsAsync(user.Username);
+            hasGroups = userGroups.Any();
+        }
+    }
+}

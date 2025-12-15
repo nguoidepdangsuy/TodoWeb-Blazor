@@ -1,0 +1,123 @@
+﻿@inherits LayoutComponentBase
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@using System.Text.Json
+
+<div class="assignee-layout">
+        <!-- Sidebar bên trái -->
+        <aside class="profile-sidebar">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+                    </div>
+                    <div class="profile-name">@currentProfile?.Username</div>
+                    <div class="profile-email">@currentProfile?.Email</div>
+                </div>
+                <div class="profile-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Số điện thoại</span>
+                        <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phòng ban</span>
+                        <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Menu trong Sidebar -->
+            <nav class="sidebar-nav">
+                <a href="/home" class="nav-item">
+                    Trang Chủ
+                </a>
+                <a href="/my-groups" class="nav-item">
+                    Quản Lý Phòng
+                </a>
+                <a href="/profile" class="nav-item">
+                    Cài Đặt
+                </a>
+            </nav>
+        </aside>
+
+    <!-- Nội dung chính -->
+    <div class="main-content">
+        <!-- Header - Chỉ có Đăng Xuất -->
+        <div class="header">
+            <div class="header-info">
+                <h4>Người thực hiện</h4>
+            </div>
+            <div class="header-actions">
+                <span class="welcome-text">Xin chào, @currentProfile?.Username!</span>
+                <button class="btn btn-outline-danger btn-sm" @onclick="SignOut">
+                    Đăng xuất
+                </button>
+            </div>
+        </div>
+
+        <!-- Nội dung trang -->
+        <div class="content">
+            @Body
+        </div>
+    </div>
+</div>
+
+@code {
+    private UserProfile? currentProfile;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserProfile();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = JsonSerializer.Deserialize<UserProfile>(profileJson);
+                }
+                else
+                {
+                    currentProfile = new UserProfile
+                        {
+                            Username = user.Username,
+                            Email = user.Email,
+                            Phone = "Chưa cập nhật",
+                            Department = "Nhân viên",
+                            Avatar = "https://via.placeholder.com/100/28a745/ffffff?text=" + user.Username[0]
+                        };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                    {
+                        Username = user.Username,
+                        Email = user.Email,
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = "https://via.placeholder.com/100/28a745/ffffff?text=" + user.Username[0]
+                    };
+            }
+        }
+    }
+
+    private async Task SignOut()
+    {
+        await AuthService.SignOutAsync();
+        Navigation.NavigateTo("/", true);
+    }
+
+    private string GetNavClass(string url)
+    {
+        var currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+        return currentUrl.StartsWith(url.Replace("/assignee/", "")) ? "active" : "";
+    }
+}

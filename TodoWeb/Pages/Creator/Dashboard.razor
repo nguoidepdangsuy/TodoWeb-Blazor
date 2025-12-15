@@ -1,0 +1,192 @@
+﻿@page "/creator/dashboard"
+@inject ITaskService TaskService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@layout CreatorLayout
+
+<AuthorizeCreator>
+    <div class="creator-dashboard-page">
+        <div class="creator-dashboard-container">
+
+            <!-- Header Section -->
+            <div class="dashboard-header">
+                <h1>Quản Lý Công Việc</h1>
+                <p>Theo dõi và quản lý tất cả công việc trong phòng của bạn</p>
+            </div>
+
+            <!-- Add Task Button -->
+            <div class="add-task-section">
+                <button class="add-task-btn" @onclick="NavigateToAddTask">
+                    <span>➕</span>
+                    Thêm Công Việc Mới
+                </button>
+            </div>
+
+            <!-- Stats Overview -->
+            <div class="stats-overview">
+                <div class="stat-card">
+                    <div class="stat-icon"></div>
+                    <div class="stat-number">@totalTasks</div>
+                    <div class="stat-label">Tổng số task</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"></div>
+                    <div class="stat-number">@completedTasks.Count</div>
+                    <div class="stat-label">Đã hoàn thành</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"></div>
+                    <div class="stat-number">@pendingTasks.Count</div>
+                    <div class="stat-label">Đang thực hiện</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"></div>
+                    <div class="stat-number">@completionRate.ToString("0")%</div>
+                    <div class="stat-label">Tỷ lệ hoàn thành</div>
+                </div>
+            </div>
+
+            <!-- Tasks Container -->
+            <div class="tasks-container">
+
+                <!-- Task chưa hoàn thành -->
+                <div class="tasks-column">
+                    <h3 class="column-title pending">
+                         Công việc chưa hoàn thành (@pendingTasks.Count)
+                    </h3>
+                    <div class="tasks-list">
+                        @foreach (var task in pendingTasks)
+                        {
+                            <div class="task-card pending">
+                                <div class="task-header">
+                                    <h5>@task.Title</h5>
+                                    <span class="task-priority @GetPriorityClass(task)">
+                                        @GetPriorityText(task)
+                                    </span>
+                                </div>
+                                <div class="task-info">
+                                    <div class="task-meta">
+                                        <span> @task.Assignee</span>
+                                        <span> @task.Department</span>
+                                    </div>
+                                    <div class="task-dates">
+                                        <small> Giao: @task.AssignDate.ToString("dd/MM/yyyy")</small>
+                                        <small> Hạn: @task.DueDate.ToString("dd/MM/yyyy")</small>
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(task.Description))
+                                    {
+                                        <p class="task-description">@task.Description</p>
+                                    }
+                                </div>
+                                <div class="task-actions">
+                                    <button class="btn btn-success btn-sm" @onclick="() => MarkAsCompleted(task.Id)">
+                                         Hoàn thành
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        @if (!pendingTasks.Any())
+                        {
+                            <div class="empty-state">
+                                <p> Không có task nào đang chờ!</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Task đã hoàn thành -->
+                <div class="tasks-column">
+                    <h3 class="column-title completed">
+                         Công việc đã hoàn thành (@completedTasks.Count)
+                    </h3>
+                    <div class="tasks-list">
+                        @foreach (var task in completedTasks)
+                        {
+                            <div class="task-card completed">
+                                <div class="task-header">
+                                    <h5>@task.Title</h5>
+                                    <span class="completion-badge">Đã hoàn thành</span>
+                                </div>
+                                <div class="task-info">
+                                    <div class="task-meta">
+                                        <span> @task.Assignee</span>
+                                        <span> @task.Department</span>
+                                    </div>
+                                    <div class="task-dates">
+                                        <small> Hoàn thành: @task.CompletedDate?.ToString("dd/MM/yyyy")</small>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        @if (!completedTasks.Any())
+                        {
+                            <div class="empty-state">
+                                <p> Chưa có task nào được hoàn thành</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</AuthorizeCreator>
+
+@code {
+    private List<WorkTask> allTasks = new();
+    private List<WorkTask> completedTasks = new();
+    private List<WorkTask> pendingTasks = new();
+    private int totalTasks = 0;
+    private double completionRate = 0;
+    private string currentUsername = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            currentUsername = user.Username;
+            await LoadTasks();
+        }
+    }
+
+    private async Task LoadTasks()
+    {
+        var tasks = await TaskService.GetTasksAsync();
+        // Lọc tasks được tạo bởi user hiện tại
+        allTasks = tasks.Where(t => t.CreatedBy == currentUsername).ToList();
+        totalTasks = allTasks.Count;
+        completedTasks = allTasks.Where(t => t.IsCompleted).ToList();
+        pendingTasks = allTasks.Where(t => !t.IsCompleted).ToList();
+        completionRate = totalTasks > 0 ? (completedTasks.Count * 100.0 / totalTasks) : 0;
+        StateHasChanged();
+    }
+
+    private async Task MarkAsCompleted(string taskId)
+    {
+        await TaskService.ToggleTaskCompletionAsync(taskId);
+        await LoadTasks();
+    }
+
+    private void NavigateToAddTask()
+    {
+        Navigation.NavigateTo("/creator/add-task");
+    }
+
+    private string GetPriorityClass(WorkTask task)
+    {
+        var daysUntilDue = (task.DueDate - DateTime.Today).TotalDays;
+        if (daysUntilDue <= 1) return "high-priority";
+        if (daysUntilDue <= 3) return "medium-priority";
+        return "low-priority";
+    }
+
+    private string GetPriorityText(WorkTask task)
+    {
+        var daysUntilDue = (task.DueDate - DateTime.Today).TotalDays;
+        if (daysUntilDue < 0) return "QUÁ HẠN";
+        if (daysUntilDue <= 1) return "CAO";
+        if (daysUntilDue <= 3) return "TRUNG BÌNH";
+        return "THẤP";
+    }
+}

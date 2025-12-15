@@ -1,0 +1,10 @@
+﻿@page "/assignee/dashboard"
+@inject ITaskService TaskService
+@inject IAuthService Auth
+@layout AssigneeLayout
+
+<AuthorizeAssignee>
+    <div class="assignee-dashboard">
+        <!-- Nội dung dashboard người nhận task... -->
+    </div>
+</AuthorizeAssignee>

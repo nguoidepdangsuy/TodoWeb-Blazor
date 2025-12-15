@@ -1,0 +1,26 @@
+# Visual Studio files 
+.vs/ 
+*.user 
+*.suo 
+ECHO is on.
+# Build results 
+[Dd]ebug/ 
+[Dd]ebugPublic/ 
+[Rr]elease/ 
+[Rr]eleases/ 
+x64/ 
+x86/ 
+[Aa][Rr][Mm]/ 
+[Aa][Rr][Mm]64/ 
+bld/ 
+[Bb]in/ 
+[Oo]bj/ 
+ECHO is on.
+# .NET Core 
+project.lock.json 
+project.fragment.lock.json 
+artifacts/ 
+ECHO is on.
+# Blazor specific 
+*.db 
+appsettings.Development.json 

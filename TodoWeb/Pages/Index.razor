@@ -1,0 +1,43 @@
+﻿@page "/"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="landing-page">
+    @if (!isAuthenticated)
+    {
+        <div class="auth-buttons-container">
+            <div class="auth-buttons">
+                <a href="signin" class="auth-btn-secondary">Đăng Nhập</a>
+                <a href="signup" class="auth-btn-primary">Đăng Ký</a>
+            </div>
+        </div>
+    }
+
+    <div class="hero-section">
+        <div class="hero-content">
+            <h1 class="hero-title">Chào mừng đến với TodoWeb</h1>
+            <p class="hero-subtitle">Nền tảng quản lý công việc và nhiệm vụ hiệu quả</p>
+
+            @if (!isAuthenticated)
+            {
+                <div class="cta-section">
+                    <h2>Bắt đầu ngay hôm nay!</h2>
+                    <p>Tham gia cùng hàng ngàn người dùng đang quản lý công việc hiệu quả</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isAuthenticated;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (isAuthenticated)
+        {
+            Navigation.NavigateTo("/home", true);
+        }
+    }
+}

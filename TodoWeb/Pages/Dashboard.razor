@@ -1,0 +1,80 @@
+﻿@page "/dashboard"
+@inject IAuthService AuthService
+@inject IUserTypeService UserTypeService
+@inject NavigationManager Navigation
+
+<div class="selection-dashboard">
+    <div class="welcome-section">
+        <h1> Chào mừng đến với TodoWeb</h1>
+        <p class="lead">Chọn chế độ bạn muốn sử dụng</p>
+        <p class="user-info">Xin chào: @currentUser?.Username</p>
+    </div>
+
+    <div class="role-selection">
+        <!-- Tạo nhóm - Người giao task -->
+        <div class="role-card creator-role">
+            <div class="role-icon"></div>
+            <h3>Chế độ Tạo nhóm</h3>
+            <p class="role-description">
+                Tạo và quản lý nhóm, giao task cho thành viên, theo dõi tiến độ công việc
+            </p>
+            <div class="role-features">
+                <div class="feature"> Tạo và quản lý nhóm</div>
+                <div class="feature"> Giao task cho thành viên</div>
+                <div class="feature"> Theo dõi tiến độ</div>
+                <div class="feature"> Quản lý deadline</div>
+            </div>
+            <button class="btn btn-primary role-btn" @onclick="SelectCreator">
+                Vào chế độ Tạo nhóm
+            </button>
+        </div>
+
+        <!-- Vào nhóm - Người nhận task -->
+        <div class="role-card assignee-role">
+            <div class="role-icon"></div>
+            <h3>Chế độ Vào nhóm</h3>
+            <p class="role-description">
+                Tham gia nhóm, nhận task, quản lý công việc được giao và nộp bài tập
+            </p>
+            <div class="role-features">
+                <div class="feature"> Tham gia nhóm bằng mã</div>
+                <div class="feature"> Xem task được giao</div>
+                <div class="feature"> Quản lý lịch công việc</div>
+                <div class="feature"> Nộp file trực tuyến</div>
+            </div>
+            <button class="btn btn-success role-btn" @onclick="SelectAssignee">
+                Vào chế độ Vào nhóm
+            </button>
+        </div>
+    </div>
+
+    <div class="quick-actions">
+        <p>Hoặc truy cập nhanh:</p>
+        <div class="quick-buttons">
+            <a href="/creator/dashboard" class="btn btn-outline-light">Tạo nhóm</a>
+            <a href="/assignee/dashboard" class="btn btn-outline-light">Vào nhóm</a>
+            <a href="/home" class="btn btn-outline-light">Trang chủ</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private User? currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentUser = await AuthService.GetCurrentUserAsync();
+    }
+
+    private async Task SelectCreator()
+    {
+        await UserTypeService.SetUserTypeAsync(UserType.Creator);
+        Navigation.NavigateTo("/creator/dashboard", true);
+    }
+
+    private async Task SelectAssignee()
+    {
+        await UserTypeService.SetUserTypeAsync(UserType.Assignee);
+        Navigation.NavigateTo("/assignee/dashboard", true);
+    }
+}

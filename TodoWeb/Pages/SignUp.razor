@@ -1,0 +1,110 @@
+﻿@page "/signup"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="auth-form">
+            <div class="auth-header">
+                <h2> Đăng ký tài khoản</h2>
+            
+            </div>
+
+            <EditForm Model="@newUser" OnValidSubmit="HandleSignUp">
+                <DataAnnotationsValidator />
+
+                <div class="form-group">
+                    <label for="username" class="required-field">Tên đăng nhập:</label>
+                    <InputText id="username" @bind-Value="newUser.Username"
+                               class="form-control" placeholder="Nhập tên đăng nhập (3-50 ký tự)" />
+                    <ValidationMessage For="@(() => newUser.Username)" />
+                </div>
+
+                <div class="form-group">
+                    <label for="email" class="required-field">Địa chỉ email:</label>
+                    <InputText id="email" @bind-Value="newUser.Email"
+                               class="form-control" placeholder="Nhập địa chỉ email của bạn" />
+                    <ValidationMessage For="@(() => newUser.Email)" />
+                </div>
+
+                <div class="form-group">
+                    <label for="password" class="required-field">Mật khẩu:</label>
+                    <InputText id="password" type="password"
+                               @bind-Value="newUser.Password" class="form-control"
+                               placeholder="Nhập mật khẩu (ít nhất 6 ký tự)" />
+                    <ValidationMessage For="@(() => newUser.Password)" />
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword" class="required-field">Xác nhận mật khẩu:</label>
+                    <InputText id="confirmPassword" type="password"
+                               @bind-Value="confirmPassword" class="form-control"
+                               placeholder="Nhập lại mật khẩu để xác nhận" />
+                    @if (!string.IsNullOrEmpty(confirmPassword) && newUser.Password != confirmPassword)
+                    {
+                        <div class="validation-message">Mật khẩu xác nhận không khớp!</div>
+                    }
+                </div>
+
+                <button type="submit" class="btn btn-success w-100 auth-btn" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span>Đang tạo tài khoản...</span>
+                    }
+                    else
+                    {
+                        <span> Tạo tài khoản</span>
+                    }
+                </button>
+            </EditForm>
+
+            <div class="auth-divider">
+                <span>Đã có tài khoản?</span>
+            </div>
+
+            <div class="auth-footer">
+                <a href="signin" class="btn btn-outline-primary w-100">
+                    Đăng nhập ngay
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private User newUser = new();
+    private string confirmPassword = string.Empty;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (isAuthenticated)
+        {
+            Navigation.NavigateTo("/home", true);
+        }
+    }
+
+    private async Task HandleSignUp()
+    {
+        if (newUser.Password != confirmPassword)
+        {
+            return;
+        }
+
+        isLoading = true;
+
+        try
+        {
+            var result = await AuthService.SignUpAsync(newUser);
+            if (result)
+            {
+                Navigation.NavigateTo("/home", true);
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

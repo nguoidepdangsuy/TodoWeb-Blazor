@@ -1,0 +1,261 @@
+﻿@inherits LayoutComponentBase
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@using System.Text.Json
+
+<div class="creator-layout">
+    <!-- Sidebar bên trái -->
+    <div class="sidebar">
+        <div class="user-profile">
+            <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+            <h5>@currentProfile?.Username</h5>
+            <p> @currentProfile?.Email</p>
+            <p> @currentProfile?.Phone</p>
+            <p> Phòng ban: @currentProfile?.Department</p>
+            <button class="btn btn-sm btn-outline-light mt-2" @onclick="EditProfile">
+                Chỉnh sửa
+            </button>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="/creator/dashboard" class="nav-item @GetNavClass("/creator/dashboard")">
+                <span class="nav-icon"></span> Trang chủ
+            </a>
+            <a href="/creator/groups" class="nav-item @GetNavClass("/creator/groups")">
+                <span class="nav-icon"></span> Quản lý Phòng
+            </a>
+            <a href="/creator/settings" class="nav-item @GetNavClass("/creator/settings")">
+                <span class="nav-icon"></span> Cài Đặt
+            </a>
+        </nav>
+    </div>
+
+    <!-- Nội dung chính -->
+    <div class="main-content">
+        <!-- Header với nút Add Task và Notification -->
+        <div class="header">
+            <div class="header-info">
+                <h4> Người tạo phòng</h4>
+            </div>
+            <div class="header-actions">
+                <!-- Nút Notification -->
+                <button class="btn-notification me-2" @onclick="ToggleNotification">
+                    🔔
+                    @if (unreadCount > 0)
+                    {
+                        <span class="notification-badge">@unreadCount</span>
+                    }
+                </button>
+
+                <a href="/creator/add-task" class="btn btn-primary me-2">
+                    <span class="btn-icon">➕</span> Add Task
+                </a>
+                <a href="/assignee/dashboard" class="btn btn-outline-success btn-sm me-2">
+                    Chế độ Vào phòng
+                </a>
+                <span class="welcome-text">Xin chào, @currentProfile?.Username!</span>
+            </div>
+        </div>
+
+        <!-- Notification Panel -->
+        @if (showNotificationPanel)
+        {
+            <div class="notification-panel">
+                <div class="notification-header">
+                    <h5>Thông báo</h5>
+                    <button class="btn-close" @onclick="ToggleNotification">×</button>
+                </div>
+                <div class="notification-list">
+                    @if (notifications.Any())
+                    {
+                        @foreach (var notification in notifications)
+                        {
+                            <div class="notification-item @(notification.IsRead ? "read" : "unread")">
+                                <div class="notification-icon">
+                                    @if (notification.Type == "new_task")
+                                    {
+                                        <span>📋</span>
+                                    }
+                                    else if (notification.Type == "submission")
+                                    {
+                                        <span>📤</span>
+                                    }
+                                    else if (notification.Type == "deadline_approaching")
+                                    {
+                                        <span>⏰</span>
+                                    }
+                                    else if (notification.Type == "overdue")
+                                    {
+                                        <span>⚠️</span>
+                                    }
+                                </div>
+                                <div class="notification-content">
+                                    <p class="notification-message">@notification.Message</p>
+                                    <small class="notification-time">@notification.CreatedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                </div>
+                                <button class="btn-mark-read" @onclick="() => MarkAsRead(notification.Id)">
+                                    ✓
+                                </button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="no-notifications">
+                            <p>Không có thông báo nào</p>
+                        </div>
+                    }
+                </div>
+                <div class="notification-footer">
+                    <button class="btn-clear-all" @onclick="ClearAllNotifications">Xóa tất cả</button>
+                </div>
+            </div>
+        }
+
+        <!-- Nội dung trang -->
+        <div class="content">
+            @Body
+        </div>
+    </div>
+</div>
+
+@code {
+    private UserProfile? currentProfile;
+    private bool showNotificationPanel = false;
+    private List<Notification> notifications = new();
+    private int unreadCount = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserProfile();
+        await LoadNotifications();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = JsonSerializer.Deserialize<UserProfile>(profileJson);
+                }
+                else
+                {
+                    currentProfile = new UserProfile
+                        {
+                            Username = user.Username,
+                            Email = user.Email,
+                            Phone = "Chưa cập nhật",
+                            Department = "Quản lý",
+                            Avatar = "https://via.placeholder.com/100/007bff/ffffff?text=" + user.Username[0]
+                        };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                    {
+                        Username = user.Username,
+                        Email = user.Email,
+                        Phone = "Chưa cập nhật",
+                        Department = "Quản lý",
+                        Avatar = "https://via.placeholder.com/100/007bff/ffffff?text=" + user.Username[0]
+                    };
+            }
+        }
+    }
+
+    private async Task LoadNotifications()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            // Giả lập dữ liệu thông báo cho creator (người giao task)
+            notifications = new List<Notification>
+            {
+                new Notification
+                {
+                    Id = "1",
+                    Type = "submission",
+                    Message = "Nguyễn Văn A đã nộp file cho task 'Báo cáo tuần'",
+                    IsRead = false,
+                    CreatedAt = DateTime.Now.AddHours(-1)
+                },
+                new Notification
+                {
+                    Id = "2",
+                    Type = "submission",
+                    Message = "Trần Thị B đã nộp file cho task 'Thiết kế giao diện'",
+                    IsRead = false,
+                    CreatedAt = DateTime.Now.AddHours(-2)
+                },
+                new Notification
+                {
+                    Id = "3",
+                    Type = "overdue",
+                    Message = "Task 'Review code' đã quá hạn",
+                    IsRead = true,
+                    CreatedAt = DateTime.Now.AddDays(-1)
+                },
+                new Notification
+                {
+                    Id = "4",
+                    Type = "deadline_approaching",
+                    Message = "Task 'Testing hệ thống' sắp hết hạn (còn 1 ngày)",
+                    IsRead = false,
+                    CreatedAt = DateTime.Now.AddHours(-3)
+                }
+            };
+
+            unreadCount = notifications.Count(n => !n.IsRead);
+        }
+    }
+
+    private void ToggleNotification()
+    {
+        showNotificationPanel = !showNotificationPanel;
+    }
+
+    private async Task MarkAsRead(string notificationId)
+    {
+        var notification = notifications.FirstOrDefault(n => n.Id == notificationId);
+        if (notification != null)
+        {
+            notification.IsRead = true;
+            unreadCount = notifications.Count(n => !n.IsRead);
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearAllNotifications()
+    {
+        notifications.Clear();
+        unreadCount = 0;
+        StateHasChanged();
+    }
+
+    private void EditProfile()
+    {
+        Navigation.NavigateTo("/creator/profile");
+    }
+
+    private string GetNavClass(string url)
+    {
+        var currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+        return currentUrl.StartsWith(url.Replace("/creator/", "")) ? "active" : "";
+    }
+
+    public class Notification
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty; // new_task, submission, deadline_approaching, overdue
+        public string Message { get; set; } = string.Empty;
+        public bool IsRead { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+}

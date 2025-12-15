@@ -1,0 +1,975 @@
+﻿@page "/assignee/room/{groupId}"
+@using TodoWeb.Models
+@inject ITaskService TaskService
+@inject IGroupService GroupService
+@inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject ITaskSubmissionService TaskSubmissionService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="assignee-room-page" style="padding: 0; margin: 0;">
+    <!-- Header  -->
+    <div class="room-header-actions">
+        <!-- Thêm nút Thành Viên ở đây -->
+        <button class="members-btn" @onclick="ToggleMembersList">
+            @(showMembers ? " Thành Viên" : "Thành Viên")
+        </button>
+        <button class="logout-btn" @onclick="SignOut">
+            Đăng Xuất
+        </button>
+    </div>
+
+    <div class="room-layout">
+        <!-- Sidebar -->
+        <aside class="profile-sidebar">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+                    </div>
+                    <div class="profile-name">@currentProfile?.Username</div>
+                    <div class="profile-email">@currentProfile?.Email</div>
+                </div>
+                <div class="profile-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Số điện thoại</span>
+                        <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phòng ban</span>
+                        <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Menu trong Sidebar -->
+            <nav class="sidebar-nav">
+                <a href="/home" class="nav-item">
+                    Trang Chủ
+                </a>
+                <a href="/my-groups" class="nav-item">
+                    Quản Lý Phòng
+                </a>
+                <a href="/profile" class="nav-item">
+                    Cài Đặt
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="room-main-content">
+            <!-- Room Info -->
+            <div class="room-info-card">
+                <div class="room-code">Mã phòng: <strong>@currentGroup?.Code</strong></div>
+                <h1 class="room-title">@currentGroup?.Name</h1>
+                <div class="room-details">
+                    <span class="room-badge creator-badge">ĐÃ THAM GIA</span>
+                </div>
+            </div>
+
+            <!-- Hiển thị danh sách thành viên khi nút được nhấn -->
+            @if (showMembers)
+            {
+                <div class="modal-overlay show" @onclick="ToggleMembersList">
+                    <div class="members-modal" @onclick:stopPropagation="true">
+                        <div class="modal-header">
+                            <h3>Thành viên trong phòng (@roomMembers.Count)</h3>
+                            <button class="btn-close-modal" @onclick="ToggleMembersList">×</button>
+                        </div>
+                        <div class="modal-body">
+                            @if (isLoadingMembers)
+                            {
+                                <div class="loading-members">
+                                    <div class="loading-spinner"></div>
+                                    <p>Đang tải danh sách thành viên...</p>
+                                </div>
+                            }
+                            else if (roomMembers.Any())
+                            {
+                                <div class="members-list">
+                                    @foreach (var member in roomMembers)
+                                    {
+                                        <div class="member-item">
+                                            <div class="member-avatar">
+                                                <img src="@member.Avatar" alt="@member.Username" />
+                                            </div>
+                                            <div class="member-info">
+                                                <div class="member-name">@member.Username</div>
+                                                <div class="member-department">@member.Department</div>
+                                                @if (member.IsCreator)
+                                                {
+                                                    <div class="member-role">👑 Chủ phòng</div>
+                                                }
+                                            </div>
+                                            <div class="member-status">
+                                                @if (member.IsCreator)
+                                                {
+                                                    <span class="badge creator">👑</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge member">✓</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="empty-members">
+                                    <p>Không có thành viên nào trong phòng</p>
+                                </div>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button class="btn btn-outline-secondary" @onclick="ToggleMembersList">
+                                Đóng
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- Progress Bar Tổng -->
+            <div class="progress-section">
+                <h4>Tiến độ tổng</h4>
+                <div class="progress overall-progress">
+                    <div class="progress-bar" role="progressbar" style="width: @(completionRate)%;"
+                         aria-valuenow="@completionRate" aria-valuemin="0" aria-valuemax="100">
+                        @completionRate%
+                    </div>
+                </div>
+                <small>@completedTasks.Count hoàn thành / @allTasks.Count tổng số task</small>
+            </div>
+
+            <!-- Calendar và Task List Layout -->
+            <div class="assignee-main-layout">
+                <!-- Calendar Section -->
+                <div class="calendar-section">
+                    <div class="calendar-header">
+                        <h3>Lịch công việc</h3>
+                        <div class="calendar-controls">
+                            <button class="btn btn-outline-primary" @onclick="PreviousMonth" disabled="@isChangingMonth">
+                                ‹
+                            </button>
+                            <span class="current-month @(isChangingMonth ? "month-changing" : "")">
+                                @currentDate.ToString("MMMM yyyy")
+                            </span>
+                            <button class="btn btn-outline-primary" @onclick="NextMonth" disabled="@isChangingMonth">
+                                ›
+                            </button>
+                        </div>
+                    </div>
+                    <div class="calendar @(isChangingMonth ? "month-change-animation" : "")">
+                        <div class="calendar-weekdays">
+                            @foreach (var day in weekDays)
+                            {
+                                <div class="weekday">@day</div>
+                            }
+                        </div>
+                        <div class="calendar-days">
+                            @foreach (var day in calendarDays)
+                            {
+                                <div class="calendar-day @(day.IsCurrentMonth ? "" : "other-month") @(day.Date == DateTime.Today ? "today" : "")">
+                                    <div class="day-number">@day.Date.Day</div>
+                                    <div class="day-tasks">
+                                        @foreach (var task in GetTasksForDay(day.Date))
+                                        {
+                                            <div class="task-indicator @GetTaskPriorityClass(task) @GetTaskColorClass(task)"
+                                                 @onclick="() => ViewTaskDetail(task)"
+                                                 title="@task.Title - Hạn: @task.DueDate.ToString("dd/MM")">
+                                                <span class="task-title">@GetShortTaskTitle(task.Title)</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task List Section -->
+                <div class="task-list-section">
+                    <div class="task-list-header">
+                        <div class="task-header-content">
+                            <h3>Danh sách công việc</h3>
+                            <div class="task-header-actions">
+                                <span class="task-count">@allTasks.Count tasks</span>
+                                <button class="btn-refresh" @onclick="RefreshTasks" title="Làm mới danh sách">
+                                    🔄
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tasks-list">
+                        @foreach (var task in allTasks)
+                        {
+                            <div class="task-item @GetTaskPriorityClass(task) @GetTaskColorClass(task)" @onclick="() => ViewTaskDetail(task)">
+                                <div class="task-color @GetTaskColorClass(task)"></div>
+                                <div class="task-content">
+                                    <!-- Tên task lớn hơn -->
+                                    <h4 class="task-title-large">@task.Title</h4>
+                                    <div class="task-dates">
+                                        <span>Hạn: @task.DueDate.ToString("dd/MM/yyyy")</span>
+                                        @if (IsTaskOverdue(task))
+                                        {
+                                            <span class="deadline-overdue"> ĐÃ QUÁ HẠN!</span>
+                                        }
+                                        else if (IsDeadlineApproaching(task))
+                                        {
+                                            <span class="deadline-warning"> Sắp hết hạn!</span>
+                                        }
+                                    </div>
+                                    <div class="task-progress">
+                                        <div class="progress-bar-small">
+                                            <div class="progress-fill @GetTaskColorClass(task)" style="width: @GetTaskProgress(task)%"></div>
+                                        </div>
+                                        <span class="progress-text">@GetTaskProgress(task)%</span>
+                                    </div>
+                                </div>
+                                @if (task.IsCompleted)
+                                {
+                                    <div class="task-status completed"></div>
+                                }
+                                else
+                                {
+                                    <div class="task-status pending"></div>
+                                }
+                            </div>
+                        }
+                        @if (!allTasks.Any())
+                        {
+                            <div class="empty-state">
+                                <p>Không có task nào được giao!</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Task Detail Modal -->
+@if (selectedTask != null)
+{
+    <div class="modal-backdrop show" @onclick="CloseTaskDetail"></div>
+    <div class="task-detail-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="header-content">
+                    <!-- Tên task lớn hơn trong modal -->
+                    <h3 class="modal-title-xlarge">@selectedTask.Title</h3>
+                    <!-- Hiển thị trạng thái hoàn thành ở header -->
+                    @if (selectedTask.IsCompleted)
+                    {
+                        <div class="completion-status-header">
+                            <span class="badge bg-success">✅ Đã hoàn thành</span>
+                        </div>
+                    }
+                </div>
+                <button type="button" class="btn-close" @onclick="CloseTaskDetail">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="task-detail-content">
+                    <div class="task-info-section">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <strong>Người giao:</strong> @selectedTask.CreatedBy
+                            </div>
+                            <div class="info-item">
+                                <strong>Ngày giao:</strong> @selectedTask.AssignDate.ToString("dd/MM/yyyy")
+                            </div>
+                            <div class="info-item">
+                                <strong>Hạn hoàn thành:</strong>
+                                @if (IsTaskOverdue(selectedTask))
+                                {
+                                    <span class="deadline-overdue">
+                                        @selectedTask.DueDate.ToString("dd/MM/yyyy")
+                                    </span>
+                                }
+                                else if (IsDeadlineApproaching(selectedTask))
+                                {
+                                    <span class="deadline-warning">
+                                        @selectedTask.DueDate.ToString("dd/MM/yyyy")
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span>@selectedTask.DueDate.ToString("dd/MM/yyyy")</span>
+                                }
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(selectedTask.Description))
+                        {
+                            <div class="task-description-section">
+                                <strong>Mô tả:</strong>
+                                <p class="task-description">@selectedTask.Description</p>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- File Submission Section - Góc phải -->
+                    <div class="file-submission-section">
+                        <div class="file-submission-header">
+                            <h5>Nộp file</h5>
+                            <!-- Nút Add File -->
+                            <label class="add-file-btn">
+                                <InputFile OnChange="HandleFileUpload"
+                                           accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" />
+                                <span>+ Thêm file</span>
+                            </label>
+                        </div>
+                        @if (submissions.Any())
+                        {
+                            <div class="submissions-list">
+                                <h6>File đã nộp:</h6>
+                                @foreach (var submission in submissions)
+                                {
+                                    <div class="submission-item">
+                                        <div class="file-info">
+                                            <span class="file-icon"></span>
+                                            <div class="file-details">
+                                                <span class="file-name">@submission.FileName</span>
+                                                <small class="file-size">(@FormatFileSize(submission.FileSize))</small>
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger delete-btn"
+                                                @onclick="() => DeleteSubmission(submission.Id)"
+                                                title="Xóa file">
+                                            🗑️
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="no-files">
+                                <p>Chưa có file nào được nộp</p>
+                            </div>
+                        }
+
+                        <!-- Nút đánh dấu hoàn thành - chỉ hiển thị khi task chưa hoàn thành và có file nộp -->
+                        @if (!selectedTask.IsCompleted && submissions.Any())
+                        {
+                            <div class="action-section">
+                                <button class="btn btn-success mark-complete-btn" @onclick="MarkAsCompleted">
+                                    <span class="btn-icon">✓</span>
+                                    Đánh dấu hoàn thành
+                                </button>
+                                <small class="action-note">Sau khi đánh dấu hoàn thành, bạn không thể chỉnh sửa file đã nộp</small>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string GroupId { get; set; } = string.Empty;
+
+    private Group? currentGroup;
+    private List<WorkTask> allTasks = new();
+    private List<WorkTask> completedTasks = new();
+    private List<TaskSubmission> submissions = new();
+    private WorkTask? selectedTask = null;
+    private DateTime currentDate = DateTime.Today;
+    private string[] weekDays = { "CN", "T2", "T3", "T4", "T5", "T6", "T7" };
+    private string currentUsername = string.Empty;
+    private UserProfile? currentProfile;
+    private bool isChangingMonth = false;
+
+    // Thêm biến cho thành viên phòng
+    private List<MemberInfo> roomMembers = new();
+    private bool showMembers = false;
+    private bool isLoadingMembers = false;
+
+    // Timer cho auto refresh
+    private System.Threading.Timer? _refreshTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        currentUsername = user?.Username ?? string.Empty;
+        await LoadUserProfile();
+        await LoadGroupData(); // Load group data trước
+
+        if (currentGroup != null)
+        {
+            await LoadRoomMembers(); // Sau khi có group data, load thành viên
+            await LoadTasks();
+            await CheckDeadlines();
+        }
+
+        // Tự động refresh task list mỗi 30 giây
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadTasks();
+                StateHasChanged();
+                await JSRuntime.InvokeVoidAsync("console.log", "🔄 Tự động làm mới danh sách task");
+            });
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+    }
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
+                }
+                else
+                {
+                    currentProfile = new UserProfile
+                        {
+                            Username = user.Username,
+                            Email = user.Email ?? "",
+                            Phone = "Chưa cập nhật",
+                            Department = "Nhân viên",
+                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                        };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                    {
+                        Username = user.Username ?? "User",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                    };
+            }
+        }
+    }
+
+    private async Task LoadGroupData()
+    {
+        try
+        {
+            currentGroup = await GroupService.GetGroupAsync(GroupId);
+            if (currentGroup == null)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Không tìm thấy thông tin phòng!");
+                Navigation.NavigateTo("/my-groups");
+                return;
+            }
+
+            // Debug log để xem thông tin group
+            await JSRuntime.InvokeVoidAsync("console.log",
+                $"Group loaded: {currentGroup.Name}, Members count: {currentGroup.Members?.Count ?? 0}, Creator: {currentGroup.Creator}");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", $"Error loading group: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi tải thông tin phòng!");
+            Navigation.NavigateTo("/my-groups");
+        }
+    }
+
+    // Thêm các phương thức cho thành viên phòng
+    private class MemberInfo
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string Avatar { get; set; } = string.Empty;
+        public bool IsCreator { get; set; }
+    }
+
+    private async Task LoadRoomMembers()
+    {
+        if (currentGroup == null)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error", "currentGroup is null in LoadRoomMembers");
+            return;
+        }
+
+        isLoadingMembers = true;
+        StateHasChanged();
+
+        try
+        {
+            roomMembers.Clear();
+
+            // Kiểm tra xem Members có tồn tại không
+            if (currentGroup.Members == null || !currentGroup.Members.Any())
+            {
+                await JSRuntime.InvokeVoidAsync("console.log", "Group has no members");
+                return;
+            }
+
+            // Debug: Log ra danh sách members từ currentGroup
+            await JSRuntime.InvokeVoidAsync("console.log",
+                $"Loading members for group {currentGroup.Name}: {string.Join(", ", currentGroup.Members)}");
+
+            // Thêm tất cả thành viên, bao gồm cả creator
+            foreach (var memberUsername in currentGroup.Members)
+            {
+                try
+                {
+                    if (string.IsNullOrEmpty(memberUsername))
+                        continue;
+
+                    var memberProfile = await LoadMemberProfile(memberUsername);
+                    var isCreator = memberUsername == currentGroup.Creator;
+
+                    roomMembers.Add(new MemberInfo
+                        {
+                            Username = memberProfile?.Username ?? memberUsername,
+                            Department = memberProfile?.Department ?? "Nhân viên",
+                            Avatar = memberProfile?.Avatar ?? GetDefaultAvatar(memberUsername, isCreator),
+                            IsCreator = isCreator
+                        });
+
+                    await JSRuntime.InvokeVoidAsync("console.log",
+                        $"Added member: {memberUsername}, IsCreator: {isCreator}");
+                }
+                catch (Exception ex)
+                {
+                    await JSRuntime.InvokeVoidAsync("console.error",
+                        $"Error loading profile for {memberUsername}: {ex.Message}");
+
+                    // Thêm với thông tin mặc định
+                    roomMembers.Add(new MemberInfo
+                        {
+                            Username = memberUsername,
+                            Department = "Nhân viên",
+                            Avatar = GetDefaultAvatar(memberUsername, memberUsername == currentGroup.Creator),
+                            IsCreator = memberUsername == currentGroup.Creator
+                        });
+                }
+            }
+
+            await JSRuntime.InvokeVoidAsync("console.log",
+                $"Total room members loaded: {roomMembers.Count}");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error",
+                $"Error in LoadRoomMembers: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingMembers = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetDefaultAvatar(string username, bool isCreator = false)
+    {
+        if (string.IsNullOrEmpty(username))
+            return "https://via.placeholder.com/40/4285f4/ffffff?text=U";
+
+        var firstChar = username.Length > 0 ? username[0] : 'U';
+        var color = isCreator ? "ff6b35" : "4285f4"; // Màu cam cho creator, xanh dương cho member
+        return $"https://via.placeholder.com/40/{color}/ffffff?text={firstChar}";
+    }
+
+    private void ToggleMembersList()
+    {
+        showMembers = !showMembers;
+        if (showMembers)
+        {
+            // Refresh danh sách thành viên khi mở modal
+            _ = LoadRoomMembers();
+        }
+    }
+
+    private async Task<UserProfile?> LoadMemberProfile(string username)
+    {
+        try
+        {
+            var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{username}");
+            if (!string.IsNullOrEmpty(profileJson))
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
+            }
+
+            // Nếu không có trong localStorage, tạo profile mặc định
+            return new UserProfile
+                {
+                    Username = username,
+                    Department = "Nhân viên",
+                    Email = $"{username}@company.com",
+                    Phone = "Chưa cập nhật",
+                    Avatar = GetDefaultAvatar(username, false)
+                };
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error",
+                $"Error in LoadMemberProfile for {username}: {ex.Message}");
+
+            // Trả về profile mặc định nếu có lỗi
+            return new UserProfile
+                {
+                    Username = username,
+                    Department = "Nhân viên",
+                    Avatar = GetDefaultAvatar(username, false)
+                };
+        }
+    }
+
+    private async Task<bool> TaskExistsInStorage(string taskId)
+    {
+        try
+        {
+            var tasksJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "tasks");
+            if (!string.IsNullOrEmpty(tasksJson))
+            {
+                var allTasksInStorage = System.Text.Json.JsonSerializer.Deserialize<List<WorkTask>>(tasksJson) ?? new List<WorkTask>();
+                return allTasksInStorage.Any(t => t.Id == taskId);
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task LoadTasks()
+    {
+        try
+        {
+            // Lấy trực tiếp từ localStorage (không qua service)
+            var tasksJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "tasks");
+            var allTasksInStorage = !string.IsNullOrEmpty(tasksJson)
+                ? System.Text.Json.JsonSerializer.Deserialize<List<WorkTask>>(tasksJson) ?? new List<WorkTask>()
+                : new List<WorkTask>();
+
+            await JSRuntime.InvokeVoidAsync("console.log",
+                $" LOADING DIRECT FROM LOCALSTORAGE: {allTasksInStorage.Count} tasks");
+
+            // Lọc tasks được giao cho user hiện tại TRONG PHÒNG HIỆN TẠI
+            allTasks = allTasksInStorage.Where(t =>
+                t.Assignee == currentUsername &&
+                t.GroupId == GroupId  // QUAN TRỌNG: Chỉ lấy tasks của phòng hiện tại
+            ).ToList();
+
+            // DEBUG: Log chi tiết
+            foreach (var task in allTasks)
+            {
+                await JSRuntime.InvokeVoidAsync("console.log",
+                    $" TASK IN CURRENT ROOM: '{task.Title}', Group: {task.GroupId}, Current Group: {GroupId}");
+            }
+
+            // DEBUG: Log tasks từ phòng khác (để debug)
+            var tasksFromOtherRooms = allTasksInStorage.Where(t =>
+                t.Assignee == currentUsername &&
+                t.GroupId != GroupId
+            ).ToList();
+
+            if (tasksFromOtherRooms.Any())
+            {
+                await JSRuntime.InvokeVoidAsync("console.log",
+                    $" TASKS FROM OTHER ROOMS (IGNORED): {tasksFromOtherRooms.Count}");
+                foreach (var task in tasksFromOtherRooms)
+                {
+                    await JSRuntime.InvokeVoidAsync("console.log",
+                        $"   - '{task.Title}' from Group: {task.GroupId}");
+                }
+            }
+
+            await JSRuntime.InvokeVoidAsync("console.log",
+                $" FINAL TASKS FOR USER IN ROOM {GroupId}: {allTasks.Count} tasks");
+
+            completedTasks = allTasks.Where(t => t.IsCompleted).ToList();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("console.error",
+                $"Lỗi khi tải tasks: {ex.Message}");
+        }
+    }
+
+    private async Task CheckDeadlines()
+    {
+        foreach (var task in allTasks.Where(t => !t.IsCompleted))
+        {
+            var daysUntilDue = (task.DueDate - DateTime.Today).TotalDays;
+            if (daysUntilDue <= 1)
+            {
+                Console.WriteLine($"Task '{task.Title}' is approaching deadline");
+            }
+        }
+    }
+
+    private double completionRate => allTasks.Count > 0 ? Math.Round((completedTasks.Count * 100.0 / allTasks.Count), 1) : 0;
+
+    // Calendar Logic
+    private List<CalendarDay> calendarDays
+    {
+        get
+        {
+            var days = new List<CalendarDay>();
+            var firstDayOfMonth = new DateTime(currentDate.Year, currentDate.Month, 1);
+            var lastDayOfMonth = firstDayOfMonth.AddMonths(1).AddDays(-1);
+
+            // Thêm ngày của tháng trước
+            var startDay = firstDayOfMonth.AddDays(-(int)firstDayOfMonth.DayOfWeek);
+
+            for (int i = 0; i < (int)firstDayOfMonth.DayOfWeek; i++)
+            {
+                days.Add(new CalendarDay { Date = startDay.AddDays(i), IsCurrentMonth = false });
+            }
+
+            // Thêm ngày của tháng hiện tại
+            for (int i = 0; i < lastDayOfMonth.Day; i++)
+            {
+                days.Add(new CalendarDay { Date = firstDayOfMonth.AddDays(i), IsCurrentMonth = true });
+            }
+
+            // Thêm ngày của tháng sau
+            var endDay = lastDayOfMonth.AddDays(7 - (int)lastDayOfMonth.DayOfWeek);
+
+            for (int i = 1; i <= (7 - (int)lastDayOfMonth.DayOfWeek - 1); i++)
+            {
+                days.Add(new CalendarDay { Date = lastDayOfMonth.AddDays(i), IsCurrentMonth = false });
+            }
+
+            return days;
+        }
+    }
+
+    // Lấy tasks cho ngày cụ thể - CHỈ HIỂN THỊ TASK CÓ NGÀY HẾT HẠN TRÙNG VỚI NGÀY ĐƯỢC CHỌN
+    private List<WorkTask> GetTasksForDay(DateTime date)
+    {
+        return allTasks.Where(t =>
+            t.DueDate.Date == date.Date &&  // Chỉ lấy task có ngày hết hạn trùng với ngày được chọn
+            !t.IsCompleted
+        ).ToList();
+    }
+
+    private string GetTaskPriorityClass(WorkTask task)
+    {
+        var daysUntilDue = (task.DueDate - DateTime.Today).TotalDays;
+        if (daysUntilDue < 0) return "overdue";
+        if (daysUntilDue <= 1) return "high-priority";
+        if (daysUntilDue <= 3) return "medium-priority";
+        return "low-priority";
+    }
+
+    private string GetTaskColorClass(WorkTask task)
+    {
+        if (task.IsCompleted)
+            return "blue"; // Đã hoàn thành - xanh dương
+        else if ((task.DueDate - DateTime.Today).TotalDays < 0)
+            return "gray"; // Đã hết hạn - xám
+        else if ((task.DueDate - DateTime.Today).TotalDays <= 1)
+            return "red"; // Sắp hết hạn - đỏ
+        else
+            return "yellow"; // Đã giao - vàng
+    }
+
+    private string GetShortTaskTitle(string title)
+    {
+        return title.Length > 8 ? title.Substring(0, 8) + "..." : title;
+    }
+
+    private double GetTaskProgress(WorkTask task)
+    {
+        if (task.IsCompleted) return 100;
+        var totalDays = (task.DueDate - task.AssignDate).TotalDays;
+        var daysPassed = (DateTime.Today - task.AssignDate).TotalDays;
+        var progress = Math.Min(Math.Max(daysPassed / totalDays * 100, 0), 100);
+        return Math.Round(progress, 1);
+    }
+
+    private async Task ViewTaskDetail(WorkTask task)
+    {
+        selectedTask = task;
+        submissions = await TaskSubmissionService.GetSubmissionsAsync(task.Id);
+        StateHasChanged();
+    }
+
+    private void CloseTaskDetail()
+    {
+        selectedTask = null;
+        submissions.Clear();
+        StateHasChanged();
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null && selectedTask != null)
+        {
+            var submission = new TaskSubmission
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    TaskId = selectedTask.Id,
+                    FileName = file.Name,
+                    FileSize = file.Size,
+                    FileUrl = "uploaded/" + file.Name,
+                    SubmittedAt = DateTime.Now,
+                    SubmittedBy = currentUsername,
+                    IsCompleted = false
+                };
+
+            var result = await TaskSubmissionService.SubmitTaskAsync(submission);
+            if (result)
+            {
+                submissions.Add(submission);
+                StateHasChanged();
+                await JSRuntime.InvokeVoidAsync("alert", $"Đã tải lên file: {file.Name}");
+
+                // Refresh notifications ở layout chính
+                await RefreshMainLayoutNotifications();
+
+                // Debug log
+                await JSRuntime.InvokeVoidAsync("console.log",
+                    $"File uploaded: {file.Name} for task: {selectedTask.Title} by user: {currentUsername}");
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi tải lên file!");
+            }
+        }
+    }
+
+    private async Task RefreshMainLayoutNotifications()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("refreshNotifications");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error refreshing notifications: {ex.Message}");
+        }
+    }
+
+    private async Task MarkAsCompleted()
+    {
+        if (selectedTask != null)
+        {
+            selectedTask.IsCompleted = true;
+            selectedTask.CompletedDate = DateTime.Now;
+            var result = await TaskService.UpdateTaskAsync(selectedTask);
+            if (result)
+            {
+                await LoadTasks();
+                CloseTaskDetail();
+                await JSRuntime.InvokeVoidAsync("alert", "Đã đánh dấu công việc hoàn thành!");
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi cập nhật công việc!");
+            }
+        }
+    }
+
+    private async Task DeleteSubmission(string submissionId)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Bạn có chắc muốn xóa file này?");
+        if (confirmed)
+        {
+            var result = await TaskSubmissionService.DeleteSubmissionAsync(submissionId);
+            if (result)
+            {
+                submissions.RemoveAll(s => s.Id == submissionId);
+                StateHasChanged();
+                await JSRuntime.InvokeVoidAsync("alert", "Đã xóa file!");
+            }
+        }
+    }
+
+    private bool IsDeadlineApproaching(WorkTask task)
+    {
+        var daysUntilDue = (task.DueDate - DateTime.Today).TotalDays;
+        // Chỉ cảnh báo khi còn từ 0-1 ngày, không cảnh báo khi đã quá hạn
+        return daysUntilDue >= 0 && daysUntilDue <= 1;
+    }
+
+    private bool IsTaskOverdue(WorkTask task)
+    {
+        return !task.IsCompleted && (task.DueDate - DateTime.Today).TotalDays < 0;
+    }
+
+    private async Task RefreshTasks()
+    {
+        await LoadTasks();
+        StateHasChanged();
+        await JSRuntime.InvokeVoidAsync("console.log", "Đã làm mới danh sách task");
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        int order = 0;
+        double len = bytes;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    private async Task PreviousMonth()
+    {
+        if (isChangingMonth) return;
+
+        isChangingMonth = true;
+        currentDate = currentDate.AddMonths(-1);
+        StateHasChanged();
+
+        await Task.Delay(300); // Chờ animation hoàn thành
+        isChangingMonth = false;
+        StateHasChanged(); // Cập nhật lại trạng thái để bỏ class animation
+    }
+
+    private async Task NextMonth()
+    {
+        if (isChangingMonth) return;
+
+        isChangingMonth = true;
+        currentDate = currentDate.AddMonths(1);
+        StateHasChanged();
+
+        await Task.Delay(300); // Chờ animation hoàn thành
+        isChangingMonth = false;
+        StateHasChanged(); // Cập nhật lại trạng thái để bỏ class animation
+    }
+
+    private async Task SignOut()
+    {
+        await AuthService.SignOutAsync();
+        Navigation.NavigateTo("/", true);
+    }
+
+    // CalendarDay class - chỉ dùng cho component này
+    public class CalendarDay
+    {
+        public DateTime Date { get; set; }
+        public bool IsCurrentMonth { get; set; }
+    }
+
+    public class UserProfile
+    {
+        public string? Username { get; set; }
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string? Department { get; set; }
+        public string? Avatar { get; set; }
+    }
+}

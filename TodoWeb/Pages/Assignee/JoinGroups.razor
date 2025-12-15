@@ -1,0 +1,219 @@
+﻿@page "/assignee/join-group"
+@inject IGroupService GroupService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<div class="create-group-page">
+    <div class="home-layout">
+        <!-- Sidebar bên trái -->
+        <aside class="profile-sidebar">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+                    </div>
+                    <div class="profile-name">@currentProfile?.Username</div>
+                    <div class="profile-email">@currentProfile?.Email</div>
+                </div>
+                <div class="profile-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Số điện thoại</span>
+                        <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phòng ban</span>
+                        <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Menu trong Sidebar -->
+            <nav class="sidebar-nav">
+                <a href="/home" class="nav-item">
+                    Trang Chủ
+                </a>
+                @if (hasGroups)
+                {
+                    <a href="/my-groups" class="nav-item">
+                        Quản Lý Phòng
+                        <span class="group-count">@userGroups.Count</span>
+                    </a>
+                }
+                
+                <a href="/profile" class="nav-item">
+                    Cài Đặt
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main content bên phải -->
+        <main class="dashboard-main">
+            <div class="create-group-container">
+                <h1>Vào Phòng</h1>
+                <p>Hãy nhập mã code </p>
+
+                @if (string.IsNullOrEmpty(successMessage))
+                {
+                    <!-- Form nhập code -->
+                    <div class="create-group-form">
+                        <div class="form-group">
+                            <label for="groupCode" class="required-field">Mã phòng:</label>
+                            <input @bind="groupCode" @bind:event="oninput" class="form-control"
+                                   placeholder="Nhập mã code 6 ký tự" maxlength="6" style="text-transform:uppercase" />
+                            @if (showError && string.IsNullOrWhiteSpace(groupCode))
+                            {
+                                <div class="validation-message">Vui lòng nhập mã code</div>
+                            }
+                        </div>
+                        <button class="btn btn-primary create-btn" @onclick="HandleJoinGroup" disabled="@isJoining">
+                            @if (isJoining)
+                            {
+                                <span>Đang tham gia...</span>
+                            }
+                            else
+                            {
+                                <span>Vào Phòng</span>
+                            }
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <!-- Hiển thị thông báo thành công -->
+                    <div class="success-section">
+                        <div class="success-icon"></div>
+                        <h2>@successMessage</h2>
+                        <div class="group-info-card">
+                            <div class="group-name">Đã tham gia phòng thành công!</div>
+                            <div class="group-code-section">
+                                <label>Mã phòng đã nhập:</label>
+                                <div class="code-display">
+                                    <span class="code-text">@groupCode</span>
+                                </div>
+                                <small class="code-hint">Bạn có thể bắt đầu làm việc trong phòng ngay bây giờ</small>
+                            </div>
+                        </div> 
+                    </div>
+                }
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    private UserProfile? currentProfile;
+    private string groupCode = string.Empty;
+    private bool isJoining = false;
+    private bool showError = false;
+    private string successMessage = string.Empty;
+    private List<Group> userGroups = new();
+    private bool hasGroups = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserProfile();
+        await LoadUserGroups();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
+                }
+                else
+                {
+                    currentProfile = new UserProfile
+                    {
+                        Username = user.Username,
+                        Email = user.Email ?? "",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                    };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                {
+                    Username = user.Username ?? "User",
+                    Phone = "Chưa cập nhật",
+                    Department = "Nhân viên",
+                    Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                };
+            }
+        }
+    }
+
+    private async Task LoadUserGroups()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            userGroups = await GroupService.GetUserGroupsAsync(user.Username);
+            hasGroups = userGroups.Any();
+        }
+    }
+
+    private async Task HandleJoinGroup()
+    {
+        if (string.IsNullOrWhiteSpace(groupCode) || groupCode.Length != 6)
+        {
+            showError = true;
+            return;
+        }
+
+        isJoining = true;
+        showError = false;
+
+        try
+        {
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user != null)
+            {
+                var result = await GroupService.JoinGroupAsync(groupCode.ToUpper(), user.Username);
+                if (result)
+                {
+                    var group = await GroupService.GetGroupByCodeAsync(groupCode.ToUpper());
+                    successMessage = $"Đã tham gia phòng '{group?.Name}' thành công!";
+                    
+                    // Cập nhật lại danh sách nhóm sau khi vào phòng thành công
+                    await LoadUserGroups();
+                    StateHasChanged(); // Refresh UI để hiển thị Quản Lý Nhóm
+                }
+                else
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Mã code không hợp lệ hoặc phòng không tồn tại!");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi: {ex.Message}");
+        }
+        finally
+        {
+            isJoining = false;
+        }
+    }
+
+    private void GoToDashboard()
+    {
+        Navigation.NavigateTo("/assignee/dashboard");
+    }
+
+    private void JoinAnotherGroup()
+    {
+        groupCode = string.Empty;
+        successMessage = string.Empty;
+        showError = false;
+    }
+}

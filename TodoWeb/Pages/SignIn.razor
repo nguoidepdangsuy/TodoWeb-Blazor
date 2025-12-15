@@ -1,0 +1,112 @@
+﻿@page "/signin"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="auth-form">
+            <div class="auth-header">
+                <h2> Đăng nhập</h2>
+          
+            </div>
+
+            <!-- Thông báo lỗi sai mật khẩu/tên đăng nhập -->
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="error-message">
+                    @errorMessage
+                </div>
+            }
+
+            <EditForm Model="@loginModel" OnValidSubmit="HandleSignIn">
+                <DataAnnotationsValidator />
+
+                <div class="form-group">
+                    <label for="loginUsername" class="required-field">Tên đăng nhập:</label>
+                    <InputText id="loginUsername" @bind-Value="loginModel.Username"
+                               class="form-control" placeholder="Nhập tên đăng nhập của bạn" />
+                    <ValidationMessage For="@(() => loginModel.Username)" class="validation-message" />
+                </div>
+
+                <div class="form-group">
+                    <label for="loginPassword" class="required-field">Mật khẩu:</label>
+                    <InputText id="loginPassword" type="password"
+                               @bind-Value="loginModel.Password" class="form-control"
+                               placeholder="Nhập mật khẩu của bạn" />
+                    <ValidationMessage For="@(() => loginModel.Password)" class="validation-message" />
+                </div>
+
+                <div class="form-options">
+                    <label class="remember-me">
+                        <input type="checkbox" @bind="rememberMe" />
+                        <span>Ghi nhớ đăng nhập</span>
+                    </label>
+                    <a href="#" @onclick="HandleForgotPassword" class="forgot-password">Quên mật khẩu?</a>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 auth-btn" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span>Đang xử lý...</span>
+                    }
+                    else
+                    {
+                        <span> Đăng nhập</span>
+                    }
+                </button>
+            </EditForm>
+
+            <div class="auth-divider">
+                <span>Hoặc</span>
+            </div>
+
+            <div class="auth-footer">
+                <p>Chưa có tài khoản? <a href="signup" class="auth-link">Đăng ký ngay</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new();
+    private bool isLoading = false;
+    private bool rememberMe = false;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await AuthService.IsAuthenticatedAsync();
+        if (isAuthenticated)
+        {
+            Navigation.NavigateTo("/home", true);
+        }
+    }
+
+    private async Task HandleSignIn()
+    {
+        isLoading = true;
+        errorMessage = string.Empty;
+
+        try
+        {
+            var result = await AuthService.SignInAsync(loginModel.Username, loginModel.Password);
+            if (result)
+            {
+                Navigation.NavigateTo("/home", true);
+            }
+            else
+            {
+                errorMessage = "Tên đăng nhập hoặc mật khẩu không đúng. Vui lòng thử lại.";
+            }
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void HandleForgotPassword()
+    {
+        // TODO: Implement forgot password functionality
+    }
+}

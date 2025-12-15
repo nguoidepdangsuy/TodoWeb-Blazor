@@ -1,0 +1,651 @@
+﻿@page "/creator/add-task"
+@inject ITaskService TaskService
+@inject IGroupService GroupService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+
+<div class="add-task-page">
+    <div class="home-layout">
+        <!-- Sidebar bên trái -->
+        <aside class="profile-sidebar">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+                    </div>
+                    <div class="profile-name">@currentProfile?.Username</div>
+                    <div class="profile-email">@currentProfile?.Email</div>
+                </div>
+                <div class="profile-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Số điện thoại</span>
+                        <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phòng ban</span>
+                        <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Menu trong Sidebar -->
+            <nav class="sidebar-nav">
+                <a href="/home" class="nav-item">
+                    Trang Chủ
+                </a>
+                <a href="/my-groups" class="nav-item">
+                    Quản Lý Phòng
+                </a>
+                <a href="/profile" class="nav-item">
+                    Cài Đặt
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main content bên phải -->
+        <main class="dashboard-main">
+            <div class="add-task-main-content">
+                <div class="add-task-container">
+                    <h2>ADD TASK</h2>
+
+                    <EditForm Model="@newTask" OnValidSubmit="HandleAddTask">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary />
+
+                        <div class="form-group">
+                            <label for="title">Tên công việc:</label>
+                            <InputText id="title" @bind-Value="newTask.Title"
+                                       class="form-control" placeholder="Nhập tên công việc..." />
+                            <ValidationMessage For="@(() => newTask.Title)" />
+                        </div>
+
+                        <!-- MULTI-ASSIGNEE SECTION -->
+                        <div class="form-group">
+                            <label for="assignee">Người được giao:</label>
+                            <div class="multi-assignee-section">
+                                <select id="assignee" class="form-control" @onchange="OnAssigneeChanged">
+                                    <option value="">Chọn người được giao</option>
+                                    @foreach (var member in availableMembers)
+                                    {
+                                        <option value="@member.Username">@member.Username - @member.Department</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <!-- Hiển thị danh sách người đã chọn -->
+                            @if (selectedAssignees.Any())
+                            {
+                                <div class="selected-assignees mt-3">
+                                    <h6>Người đã chọn (@selectedAssignees.Count):</h6>
+                                    <div class="assignee-tags">
+                                        @foreach (var assignee in selectedAssignees)
+                                        {
+                                            <div class="assignee-tag">
+                                                <span class="assignee-name">@assignee.Username</span>
+                                                <span class="assignee-department">@assignee.Department</span>
+                                                <button type="button" class="btn-remove-assignee"
+                                                        @onclick="() => RemoveAssignee(assignee.Username)">
+                                                    ×
+                                                </button>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="no-assignees mt-3">
+                                    <p class="text-muted">Chưa có người nào được chọn.</p>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="assignDate">Ngày giao:</label>
+                                    <InputDate id="assignDate" @bind-Value="newTask.AssignDate"
+                                               class="form-control" />
+                                    @if (newTask.AssignDate.Date < DateTime.Today)
+                                    {
+                                        <div class="validation-message text-danger">
+                                            <small>Ngày giao không được trước ngày hiện tại</small>
+                                        </div>
+                                    }
+                                    <ValidationMessage For="@(() => newTask.AssignDate)" />
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="dueDate">Ngày hết hạn:</label>
+                                    <InputDate id="dueDate" @bind-Value="newTask.DueDate"
+                                               class="form-control" />
+                                    @if (newTask.DueDate.Date < newTask.AssignDate.Date)
+                                    {
+                                        <div class="validation-message text-danger">
+                                            <small>Ngày hết hạn không được trước ngày giao</small>
+                                        </div>
+                                    }
+                                    <ValidationMessage For="@(() => newTask.DueDate)" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="description">Mô tả công việc:</label>
+                            <InputTextArea id="description" @bind-Value="newTask.Description"
+                                           class="form-control" rows="4" placeholder="Nhập mô tả chi tiết công việc..." />
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-prev" @onclick="GoBack" disabled="@isLoading">
+                                <span class="btn-icon">←</span>
+                                Trước
+                            </button>
+                            <button type="submit" class="btn btn-complete" disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <span class="btn-icon">⏳</span>
+                                    <span>Đang xử lý...</span>
+                                }
+                                else
+                                {
+                                    <span class="btn-icon">✓</span>
+                                    <span>Giao Task (@selectedAssignees.Count người)</span>
+                                }
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "groupId")]
+    public string? GroupId { get; set; }
+
+    private WorkTask newTask = new()
+        {
+            AssignDate = DateTime.Today,
+            DueDate = DateTime.Today.AddDays(7)
+        };
+
+    private List<string> departments = new();
+    private List<UserProfile> groupMembers = new();
+    private List<UserProfile> availableMembers = new();
+    private List<UserProfile> selectedAssignees = new();
+    private bool isLoading = false;
+    private UserProfile? currentProfile;
+    private Group? currentGroup;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserProfile();
+        await LoadGroupData();
+        await LoadDepartments();
+
+        // Set CreatedBy
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            newTask.CreatedBy = user.Username ?? "";
+        }
+
+        Console.WriteLine($"🔧 ADD TASK PAGE - GroupId: {GroupId}, CurrentGroup: {currentGroup?.Name}");
+    }
+
+    private async Task LoadDepartments()
+    {
+        try
+        {
+            departments = await TaskService.GetDepartmentsAsync() ?? new List<string>();
+            if (!departments.Any())
+            {
+                departments = new List<string> { "Nhân viên", "Quản lý", "Kỹ thuật", "Kinh doanh", "Marketing" };
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ ERROR LOADING DEPARTMENTS: {ex.Message}");
+            departments = new List<string> { "Nhân viên", "Quản lý", "Kỹ thuật", "Kinh doanh", "Marketing" };
+        }
+    }
+
+    private async Task LoadUserProfile()
+    {
+        try
+        {
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user != null)
+            {
+                currentProfile = new UserProfile
+                    {
+                        Username = user.Username ?? "User",
+                        Email = user.Email ?? "",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={(user.Username?[0] ?? "U"[0])}"
+                    };
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ ERROR LOADING USER PROFILE: {ex.Message}");
+            currentProfile = new UserProfile
+                {
+                    Username = "User",
+                    Phone = "Chưa cập nhật",
+                    Department = "Nhân viên",
+                    Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                };
+        }
+    }
+
+    private async Task LoadGroupData()
+    {
+        if (string.IsNullOrEmpty(GroupId))
+        {
+            // Parse query string từ URL hiện tại
+            var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            var queryParams = ParseQueryString(uri.Query);
+
+            if (queryParams.TryGetValue("groupId", out var groupIdValue))
+            {
+                GroupId = groupIdValue;
+            }
+
+            if (string.IsNullOrEmpty(GroupId))
+            {
+                Console.WriteLine("❌ GROUPID IS NULL OR EMPTY");
+                await JSRuntime.InvokeVoidAsync("alert", "Không tìm thấy thông tin phòng!");
+                Navigation.NavigateTo("/my-groups");
+                return;
+            }
+        }
+
+        try
+        {
+            currentGroup = await GroupService.GetGroupAsync(GroupId);
+
+            if (currentGroup != null)
+            {
+                Console.WriteLine($"✅ GROUP FOUND: {currentGroup.Name} with {currentGroup.Members.Count} members");
+
+                // Lấy danh sách thành viên trong nhóm
+                await LoadGroupMembers();
+            }
+            else
+            {
+                Console.WriteLine($"❌ GROUP NOT FOUND: {GroupId}");
+                await JSRuntime.InvokeVoidAsync("alert", "Không tìm thấy thông tin phòng!");
+                Navigation.NavigateTo("/my-groups");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ ERROR LOADING GROUP DATA: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi tải thông tin phòng!");
+            Navigation.NavigateTo("/my-groups");
+        }
+    }
+
+    // Helper method để parse query string
+    private Dictionary<string, string> ParseQueryString(string query)
+    {
+        var dict = new Dictionary<string, string>();
+
+        if (string.IsNullOrEmpty(query) || query == "?")
+            return dict;
+
+        // Bỏ ký tự '?' đầu tiên nếu có
+        if (query.StartsWith("?"))
+            query = query.Substring(1);
+
+        foreach (var pair in query.Split('&'))
+        {
+            var parts = pair.Split('=');
+            if (parts.Length == 2)
+            {
+                var key = Uri.UnescapeDataString(parts[0]);
+                var value = Uri.UnescapeDataString(parts[1]);
+                dict[key] = value;
+            }
+            else if (parts.Length == 1)
+            {
+                var key = Uri.UnescapeDataString(parts[0]);
+                dict[key] = "";
+            }
+        }
+
+        return dict;
+    }
+
+    private async Task LoadGroupMembers()
+    {
+        if (currentGroup == null) return;
+
+        groupMembers.Clear();
+        availableMembers.Clear();
+        selectedAssignees.Clear();
+
+        Console.WriteLine($"👥 LOADING MEMBERS FOR GROUP: {currentGroup.Name}");
+        Console.WriteLine($"👥 MEMBERS LIST: {string.Join(", ", currentGroup.Members)}");
+
+        foreach (var username in currentGroup.Members)
+        {
+            if (!string.IsNullOrEmpty(username))
+            {
+                try
+                {
+                    var memberProfile = await LoadMemberProfile(username);
+                    if (memberProfile != null)
+                    {
+                        // Kiểm tra xem đã có trong danh sách chưa (tránh trùng lặp)
+                        if (!groupMembers.Any(m => m.Username == username))
+                        {
+                            groupMembers.Add(memberProfile);
+
+                            // Người tạo phòng không thể tự giao task cho mình
+                            var currentUser = await AuthService.GetCurrentUserAsync();
+                            if (username != currentUser?.Username)
+                            {
+                                availableMembers.Add(memberProfile);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"❌ ERROR LOADING MEMBER PROFILE {username}: {ex.Message}");
+                }
+            }
+        }
+
+        Console.WriteLine($"👥 AVAILABLE MEMBERS FOR ASSIGNMENT: {availableMembers.Count}");
+
+        // Kiểm tra nếu không có thành viên nào
+        if (!availableMembers.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Phòng này không có thành viên nào để giao task!");
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task<UserProfile?> LoadMemberProfile(string username)
+    {
+        try
+        {
+            // Thử lấy profile từ localStorage
+            var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{username}");
+
+            if (!string.IsNullOrEmpty(profileJson))
+            {
+                var profile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
+                if (profile != null)
+                {
+                    Console.WriteLine($"✅ LOADED PROFILE FOR {username} FROM LOCALSTORAGE");
+                    return profile;
+                }
+            }
+
+            // Nếu không có trong localStorage, tạo profile mặc định
+            Console.WriteLine($"⚠️ CREATING DEFAULT PROFILE FOR {username}");
+            return new UserProfile
+                {
+                    Username = username,
+                    Department = "Nhân viên",
+                    Email = $"{username}@company.com",
+                    Phone = "Chưa cập nhật",
+                    Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={username[0]}"
+                };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ ERROR LOADING MEMBER PROFILE {username}: {ex.Message}");
+            return new UserProfile
+                {
+                    Username = username,
+                    Department = "Nhân viên",
+                    Email = "",
+                    Phone = "Chưa cập nhật",
+                    Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={username[0]}"
+                };
+        }
+    }
+
+    private async Task OnAssigneeChanged(ChangeEventArgs e)
+    {
+        Console.WriteLine("✅ OnAssigneeChanged CALLED!");
+        var value = e.Value?.ToString() ?? string.Empty;
+        Console.WriteLine($"🔍 Selected value: {value}");
+
+        if (!string.IsNullOrEmpty(value))
+        {
+            await AddAssignee(value);
+            // Reset dropdown bằng JavaScript
+            await ResetDropdown();
+        }
+    }
+
+    private async Task ResetDropdown()
+    {
+        // Reset dropdown bằng JavaScript
+        await JSRuntime.InvokeVoidAsync("eval", "document.getElementById('assignee').value = ''");
+    }
+
+    private async Task AddAssignee(string username)
+    {
+        Console.WriteLine($"🔍 ADDING ASSIGNEE: {username}");
+
+        // Tìm người được chọn trong availableMembers
+        var memberToAdd = availableMembers.FirstOrDefault(m => m.Username == username);
+
+        if (memberToAdd != null)
+        {
+            // Kiểm tra xem đã có trong selectedAssignees chưa
+            if (!selectedAssignees.Any(a => a.Username == username))
+            {
+                selectedAssignees.Add(memberToAdd);
+                availableMembers.Remove(memberToAdd);
+
+                Console.WriteLine($"✅ SUCCESSFULLY ADDED: {username}");
+                Console.WriteLine($"📊 Selected count: {selectedAssignees.Count}, Available count: {availableMembers.Count}");
+
+                StateHasChanged();
+            }
+            else
+            {
+                Console.WriteLine($"⚠️ ALREADY SELECTED: {username}");
+                await JSRuntime.InvokeVoidAsync("alert", $"{username} đã được chọn!");
+            }
+        }
+        else
+        {
+            Console.WriteLine($"❌ NOT FOUND IN AVAILABLE MEMBERS: {username}");
+            // Kiểm tra xem có trong selectedAssignees không (trường hợp đã chọn rồi)
+            if (selectedAssignees.Any(a => a.Username == username))
+            {
+                Console.WriteLine($"ℹ️ BUT FOUND IN SELECTED ASSIGNEES: {username}");
+                await JSRuntime.InvokeVoidAsync("alert", $"{username} đã được chọn!");
+            }
+        }
+    }
+
+    private void RemoveAssignee(string username)
+    {
+        Console.WriteLine($"🔍 REMOVING ASSIGNEE: {username}");
+
+        var memberToRemove = selectedAssignees.FirstOrDefault(a => a.Username == username);
+        if (memberToRemove != null)
+        {
+            selectedAssignees.Remove(memberToRemove);
+            availableMembers.Add(memberToRemove);
+
+            Console.WriteLine($"✅ SUCCESSFULLY REMOVED: {username}");
+            Console.WriteLine($"📊 Selected count: {selectedAssignees.Count}, Available count: {availableMembers.Count}");
+
+            StateHasChanged();
+        }
+        else
+        {
+            Console.WriteLine($"❌ NOT FOUND IN SELECTED ASSIGNEES: {username}");
+        }
+    }
+
+    private async Task HandleAddTask()
+    {
+        Console.WriteLine($"🔍 DEBUG BEFORE SUBMIT:");
+        Console.WriteLine($"- GroupId: {GroupId}");
+        Console.WriteLine($"- currentGroup: {currentGroup?.Name}");
+        Console.WriteLine($"- selectedAssignees.Count: {selectedAssignees.Count}");
+        Console.WriteLine($"- AssignDate: {newTask.AssignDate:dd/MM/yyyy}, Today: {DateTime.Today:dd/MM/yyyy}");
+        Console.WriteLine($"- DueDate: {newTask.DueDate:dd/MM/yyyy}");
+        Console.WriteLine($"- Title: {newTask.Title}");
+
+        if (string.IsNullOrEmpty(GroupId) || currentGroup == null)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Lỗi: Không tìm thấy thông tin phòng!");
+            return;
+        }
+
+        if (!selectedAssignees.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Vui lòng chọn ít nhất một người được giao!");
+            return;
+        }
+
+        // VALIDATE NGÀY
+        if (newTask.AssignDate.Date < DateTime.Today)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Ngày giao không được trước ngày hiện tại!");
+            return;
+        }
+
+        if (newTask.DueDate.Date < newTask.AssignDate.Date)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Ngày hết hạn không được trước ngày giao!");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newTask.Title))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Vui lòng nhập tên công việc!");
+            return;
+        }
+
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var successCount = 0;
+            var totalCount = selectedAssignees.Count;
+            var failedAssignees = new List<string>();
+
+            Console.WriteLine($"🚀 STARTING TO ASSIGN TASK TO {totalCount} PEOPLE");
+
+            // Tạo task cho từng người được chọn
+            foreach (var assignee in selectedAssignees)
+            {
+                try
+                {
+                    var taskToAdd = new WorkTask
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            Title = newTask.Title.Trim(),
+                            Assignee = assignee.Username,
+                            Department = assignee.Department,
+                            Description = newTask.Description?.Trim() ?? "",
+                            AssignDate = newTask.AssignDate,
+                            DueDate = newTask.DueDate,
+                            IsCompleted = false,
+                            CreatedBy = newTask.CreatedBy,
+                            CreatedAt = DateTime.Now,
+                            GroupId = GroupId
+                        };
+
+                    Console.WriteLine($"➕ ADDING TASK FOR: {assignee.Username}");
+
+                    var result = await TaskService.AddTaskAsync(taskToAdd);
+
+                    if (result)
+                    {
+                        successCount++;
+                        Console.WriteLine($"✅ TASK ADDED SUCCESSFULLY FOR: {assignee.Username}");
+                    }
+                    else
+                    {
+                        failedAssignees.Add(assignee.Username);
+                        Console.WriteLine($"❌ FAILED TO ADD TASK FOR: {assignee.Username}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    failedAssignees.Add(assignee.Username);
+                    Console.WriteLine($"❌ EXCEPTION FOR {assignee.Username}: {ex.Message}");
+                }
+            }
+
+            if (successCount > 0)
+            {
+                var message = "";
+
+                if (successCount == totalCount)
+                {
+                    message = $"Đã giao task '{newTask.Title}' thành công cho {successCount} người!";
+                }
+                else if (failedAssignees.Any())
+                {
+                    message = $"Đã giao task '{newTask.Title}' cho {successCount}/{totalCount} người.\nKhông thể giao cho: {string.Join(", ", failedAssignees)}";
+                }
+                else
+                {
+                    message = $"Đã giao task '{newTask.Title}' cho {successCount} người thành công!";
+                }
+
+                await JSRuntime.InvokeVoidAsync("alert", message);
+                Navigation.NavigateTo($"/creator/room/{GroupId}");
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Không thể giao task cho bất kỳ ai! Vui lòng thử lại.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ SYSTEM ERROR: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi hệ thống: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void GoBack()
+    {
+        if (!string.IsNullOrEmpty(GroupId))
+        {
+            Navigation.NavigateTo($"/creator/room/{GroupId}");
+        }
+        else
+        {
+            Navigation.NavigateTo("/my-groups");
+        }
+    }
+
+    public class UserProfile
+    {
+        public string? Username { get; set; }
+        public string? Email { get; set; }
+        public string? Phone { get; set; }
+        public string? Department { get; set; }
+        public string? Avatar { get; set; }
+    }
+}

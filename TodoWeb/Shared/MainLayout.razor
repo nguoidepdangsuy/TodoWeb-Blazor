@@ -1,0 +1,439 @@
+﻿@inherits LayoutComponentBase
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@using System.Text.Json
+
+<div class="main-layout">
+    @if (isAuthenticated)
+    {
+        <!-- THÊM THẺ DIV MỞ Ở ĐÂY -->
+        <div class="top-right-buttons">
+            <!-- Nút Notification -->
+            <button class="btn-corner btn-notification" @onclick="ToggleNotification">
+                🔔
+                @if (unreadCount > 0)
+                {
+                    <span class="notification-badge">@unreadCount</span>
+                }
+            </button>
+
+            <a href="/creator/create-group" class="btn-corner btn-tao-phong">Tạo Phòng</a>
+            <a href="/assignee/join-group" class="btn-corner btn-vao-phong">Vào Phòng</a>
+            <a href="#" @onclick="SignOut" class="btn-corner btn-logout">Đăng xuất</a>
+        </div>
+
+        <!-- Notification Panel -->
+        @if (showNotificationPanel)
+        {
+            <div class="notification-panel">
+                <div class="notification-header">
+                    <h5>Thông báo</h5>
+                    <button class="btn-close" @onclick="ToggleNotification">×</button>
+                </div>
+                <div class="notification-list">
+                    @if (notifications.Any())
+                    {
+                        @foreach (var notification in notifications)
+                        {
+                            <div class="notification-item @(notification.IsRead ? "read" : "unread") @notification.Color">
+                                <div class="notification-icon">
+                                    @if (notification.Type == "task_assigned_to_me" || notification.Type == "task_assigned_by_me")
+                                    {
+                                        <span>📋</span>
+                                    }
+                                    else if (notification.Type == "submission")
+                                    {
+                                        <span>📤</span>
+                                    }
+                                    else if (notification.Type == "deadline_approaching")
+                                    {
+                                        <span>⏰</span>
+                                    }
+                                    else if (notification.Type == "overdue")
+                                    {
+                                        <span>⚠️</span>
+                                    }
+                                </div>
+                                <div class="notification-content">
+                                    <p class="notification-message">@notification.Message</p>
+                                    <small class="notification-time">@notification.CreatedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                </div>
+                                <button class="btn-mark-read" @onclick="() => MarkAsRead(notification.Id)">
+                                    ✓
+                                </button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="no-notifications">
+                            <p>Không có thông báo nào</p>
+                        </div>
+                    }
+                </div>
+                <div class="notification-footer">
+                    <button class="btn-clear-all" @onclick="ClearAllNotifications">Xóa tất cả</button>
+                </div>
+            </div>
+        }
+    }
+
+    <div class="main-content @(isAuthenticated ? "authenticated" : "")">
+        @Body
+    </div>
+</div>
+
+@code {
+    private bool isAuthenticated = false;
+    private UserProfile? currentProfile;
+    private bool showNotificationPanel = false;
+    private List<Notification> notifications = new();
+    private int unreadCount = 0;
+    private System.Threading.Timer? _notificationTimer;
+
+    [Inject] private ITaskService TaskService { get; set; } = null!;
+    [Inject] private ITaskSubmissionService TaskSubmissionService { get; set; } = null!;
+    [Inject] private IGroupService GroupService { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAuthState();
+        AuthService.OnAuthStateChanged += OnAuthStateChanged;
+
+        if (isAuthenticated)
+        {
+            await LoadUserProfile();
+            await LoadRealNotifications();
+
+            // Tự động refresh notifications mỗi 10 giây
+            _notificationTimer = new System.Threading.Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (isAuthenticated)
+                    {
+                        await LoadRealNotifications();
+                        StateHasChanged();
+                    }
+                });
+            }, null, TimeSpan.Zero, TimeSpan.FromSeconds(10));
+        }
+    }
+
+    private async void OnAuthStateChanged()
+    {
+        await LoadAuthState();
+        if (isAuthenticated)
+        {
+            await LoadUserProfile();
+            await LoadRealNotifications();
+        }
+        else
+        {
+            notifications.Clear();
+            unreadCount = 0;
+        }
+        StateHasChanged();
+    }
+
+    private async Task LoadAuthState()
+    {
+        isAuthenticated = await AuthService.IsAuthenticatedAsync();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = JsonSerializer.Deserialize<UserProfile>(profileJson);
+                }
+                else
+                {
+                    currentProfile = new UserProfile
+                        {
+                            Username = user.Username,
+                            Email = user.Email,
+                            Phone = "Chưa cập nhật",
+                            Department = "Quản lý",
+                            Avatar = "https://via.placeholder.com/100/007bff/ffffff?text=" + user.Username[0]
+                        };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                    {
+                        Username = user.Username,
+                        Email = user.Email,
+                        Phone = "Chưa cập nhật",
+                        Department = "Quản lý",
+                        Avatar = "https://via.placeholder.com/100/007bff/ffffff?text=" + user.Username[0]
+                    };
+            }
+        }
+    }
+
+    private async Task DebugLocalStorage()
+    {
+        try
+        {
+            var submissionsJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "taskSubmissions");
+            var tasksJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "tasks");
+
+            Console.WriteLine($"Submissions JSON: {submissionsJson}");
+            Console.WriteLine($"Tasks JSON: {tasksJson}");
+
+            if (!string.IsNullOrEmpty(submissionsJson))
+            {
+                var submissions = JsonSerializer.Deserialize<List<TaskSubmission>>(submissionsJson);
+                Console.WriteLine($"Total submissions in storage: {submissions?.Count}");
+
+                foreach (var sub in submissions ?? new List<TaskSubmission>())
+                {
+                    Console.WriteLine($"Submission: {sub.FileName} by {sub.SubmittedBy} for task {sub.TaskId}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Debug error: {ex.Message}");
+        }
+    }
+
+    private async Task LoadRealNotifications()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            Console.WriteLine($"Loading real notifications for user: {user.Username}");
+
+            await DebugLocalStorage();
+            notifications.Clear();
+
+            var tasks = await TaskService.GetTasksAsync();
+            var groups = await GroupService.GetGroupsAsync();
+
+            // 1. THÔNG BÁO CHO ASSIGNEE: Task mới được giao
+            var assignedTasks = tasks
+                .Where(t => t.Assignee == user.Username &&
+                           (DateTime.Now - t.CreatedAt).TotalHours <= 24)
+                .ToList();
+            Console.WriteLine($"Found {assignedTasks.Count} newly assigned tasks for user");
+
+            foreach (var task in assignedTasks)
+            {
+                var group = groups.FirstOrDefault(g => g.Id == task.GroupId);
+                if (group != null)
+                {
+                    // Tìm profile của người giao task
+                    var creatorProfileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{task.CreatedBy}");
+                    var creatorProfile = !string.IsNullOrEmpty(creatorProfileJson)
+                        ? JsonSerializer.Deserialize<UserProfile>(creatorProfileJson)
+                        : null;
+
+                    var creatorName = creatorProfile?.FullName ?? creatorProfile?.Username ?? task.CreatedBy;
+
+                    notifications.Add(new Notification
+                        {
+                            Id = task.Id + "_assigned_to_me",
+                            Type = "task_assigned_to_me",
+                            Message = $"{creatorName} đã giao task '{task.Title}' cho bạn ở Phòng {group.Name}",
+                            IsRead = false,
+                            CreatedAt = task.CreatedAt,
+                            Color = "yellow"
+                        });
+                    Console.WriteLine($"Added notification for assigned task to me: {task.Title}");
+                }
+            }
+
+            // 2. THÔNG BÁO CHO CREATOR: File được nộp (chỉ hiển thị cho creator)
+            var recentSubmissions = await TaskSubmissionService.GetRecentSubmissionsAsync(user.Username);
+            Console.WriteLine($"Found {recentSubmissions.Count} recent submissions for creator");
+
+            foreach (var submission in recentSubmissions)
+            {
+                var task = tasks.FirstOrDefault(t => t.Id == submission.TaskId);
+                var group = groups.FirstOrDefault(g => g.Id == task?.GroupId);
+
+                if (task != null && group != null)
+                {
+                    // Tìm profile của người nộp
+                    var submitterProfileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{submission.SubmittedBy}");
+                    var submitterProfile = !string.IsNullOrEmpty(submitterProfileJson)
+                        ? JsonSerializer.Deserialize<UserProfile>(submitterProfileJson)
+                        : null;
+
+                    var submitterName = submitterProfile?.FullName ?? submitterProfile?.Username ?? submission.SubmittedBy;
+
+                    notifications.Add(new Notification
+                        {
+                            Id = submission.Id,
+                            Type = "submission",
+                            Message = $"{submitterName} đã nộp file cho task '{task.Title}' ở Phòng {group.Name}",
+                            IsRead = false,
+                            CreatedAt = submission.SubmittedAt,
+                            Color = "blue"
+                        });
+                    Console.WriteLine($"Added notification for submission: {submission.FileName}");
+                }
+            }
+
+            // 3. THÔNG BÁO CHO CẢ CREATOR VÀ ASSIGNEE: Deadline
+            var approachingTasks = tasks
+                .Where(t => !t.IsCompleted &&
+                           (t.DueDate - DateTime.Today).TotalDays <= 1 &&
+                           (t.DueDate - DateTime.Today).TotalDays >= 0 &&
+                           (t.CreatedBy == user.Username || t.Assignee == user.Username))
+                .ToList();
+            Console.WriteLine($"Found {approachingTasks.Count} approaching deadline tasks");
+
+            foreach (var task in approachingTasks)
+            {
+                var group = groups.FirstOrDefault(g => g.Id == task.GroupId);
+                if (group != null)
+                {
+                    notifications.Add(new Notification
+                        {
+                            Id = task.Id + "_deadline",
+                            Type = "deadline_approaching",
+                            Message = $"Task '{task.Title}' sắp hết hạn ở Phòng {group.Name}",
+                            IsRead = false,
+                            CreatedAt = DateTime.Now,
+                            Color = "red"
+                        });
+                    Console.WriteLine($"Added notification for approaching deadline: {task.Title}");
+                }
+            }
+
+            // 4. THÔNG BÁO CHO CẢ CREATOR VÀ ASSIGNEE: Quá hạn
+            var overdueTasks = tasks
+                .Where(t => !t.IsCompleted &&
+                           (t.DueDate - DateTime.Today).TotalDays < 0 &&
+                           (t.CreatedBy == user.Username || t.Assignee == user.Username))
+                .ToList();
+            Console.WriteLine($"Found {overdueTasks.Count} overdue tasks");
+
+            foreach (var task in overdueTasks)
+            {
+                var group = groups.FirstOrDefault(g => g.Id == task.GroupId);
+                if (group != null)
+                {
+                    notifications.Add(new Notification
+                        {
+                            Id = task.Id + "_overdue",
+                            Type = "overdue",
+                            Message = $"Task '{task.Title}' đã hết hạn ở Phòng {group.Name}",
+                            IsRead = false,
+                            CreatedAt = DateTime.Now,
+                            Color = "gray"
+                        });
+                    Console.WriteLine($"Added notification for overdue: {task.Title}");
+                }
+            }
+
+            // 5. THÔNG BÁO CHO CREATOR: Task mới được giao (từ creator)
+            var createdTasks = tasks
+                .Where(t => t.CreatedBy == user.Username &&
+                           (DateTime.Now - t.CreatedAt).TotalHours <= 24)
+                .ToList();
+            Console.WriteLine($"Found {createdTasks.Count} recently created tasks");
+
+            foreach (var task in createdTasks)
+            {
+                var group = groups.FirstOrDefault(g => g.Id == task.GroupId);
+                if (group != null)
+                {
+                    // Tìm profile của người được giao
+                    var assigneeProfileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{task.Assignee}");
+                    var assigneeProfile = !string.IsNullOrEmpty(assigneeProfileJson)
+                        ? JsonSerializer.Deserialize<UserProfile>(assigneeProfileJson)
+                        : null;
+
+                    var assigneeName = assigneeProfile?.FullName ?? assigneeProfile?.Username ?? task.Assignee;
+
+                    notifications.Add(new Notification
+                        {
+                            Id = task.Id + "_assigned_by_me",
+                            Type = "task_assigned_by_me",
+                            Message = $"Bạn đã giao task '{task.Title}' cho {assigneeName} ở Phòng {group.Name}",
+                            IsRead = false,
+                            CreatedAt = task.CreatedAt,
+                            Color = "yellow"
+                        });
+                    Console.WriteLine($"Added notification for assigned task by me: {task.Title}");
+                }
+            }
+
+            // Sắp xếp theo thời gian mới nhất
+            notifications = notifications.OrderByDescending(n => n.CreatedAt).ToList();
+            unreadCount = notifications.Count(n => !n.IsRead);
+
+            Console.WriteLine($"Total notifications: {notifications.Count}");
+            Console.WriteLine($"Unread notifications: {unreadCount}");
+        }
+        else
+        {
+            Console.WriteLine("No user found for loading notifications");
+        }
+    }
+
+    private void ToggleNotification()
+    {
+        showNotificationPanel = !showNotificationPanel;
+        if (showNotificationPanel)
+        {
+            // Refresh notifications khi mở panel
+            _ = LoadRealNotifications();
+        }
+    }
+
+    private async Task MarkAsRead(string notificationId)
+    {
+        var notification = notifications.FirstOrDefault(n => n.Id == notificationId);
+        if (notification != null)
+        {
+            notification.IsRead = true;
+            unreadCount = notifications.Count(n => !n.IsRead);
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearAllNotifications()
+    {
+        foreach (var notification in notifications)
+        {
+            notification.IsRead = true;
+        }
+        unreadCount = 0;
+        StateHasChanged();
+    }
+
+    private async Task SignOut()
+    {
+        await AuthService.SignOutAsync();
+        Navigation.NavigateTo("/", true);
+    }
+
+    public void Dispose()
+    {
+        AuthService.OnAuthStateChanged -= OnAuthStateChanged;
+        _notificationTimer?.Dispose();
+    }
+
+    public class Notification
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public bool IsRead { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string Color { get; set; } = "default";
+    }
+}

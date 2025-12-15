@@ -1,0 +1,264 @@
+﻿@page "/my-groups"
+@inject IGroupService GroupService
+@inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+
+<div class="my-groups-page">
+    <div class="home-layout">
+        <!-- Sidebar bên trái -->
+        <aside class="profile-sidebar">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+                    </div>
+                    <div class="profile-name">@currentProfile?.Username</div>
+                    <div class="profile-email">@currentProfile?.Email</div>
+                </div>
+                <div class="profile-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Số điện thoại</span>
+                        <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phòng ban</span>
+                        <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Menu trong Sidebar -->
+            <nav class="sidebar-nav">
+                <a href="/home" class="nav-item">
+                    Trang Chủ
+                </a>
+                <a href="/my-groups" class="nav-item active">
+                    Quản Lý Phòng
+                    <span class="group-count">@(createdGroups.Count + joinedGroups.Count)</span>
+                </a>
+                <a href="/profile" class="nav-item">
+                    Cài Đặt
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main content bên phải -->
+        <main class="dashboard-main">
+            <div class="groups-management-container">
+                <h1>Quản Lý Phòng</h1>
+                <p class="subtitle">Danh sách các phòng bạn đã tạo và tham gia</p>
+
+                <!-- Phòng đã tạo -->
+                <div class="groups-section">
+                    <h2 class="section-title">
+                        <span class="section-icon"></span>
+                        Phòng Đã Tạo
+                        <span class="section-count">@createdGroups.Count</span>
+                    </h2>
+
+                    @if (createdGroups.Any())
+                    {
+                        <div class="groups-grid">
+                            @foreach (var group in createdGroups)
+                            {
+                                <div class="group-card created">
+                                    <div class="group-header">
+                                        <h3 class="group-name">@group.Name</h3>
+                                        <span class="group-badge created-badge">ĐÃ TẠO</span>
+                                    </div>
+                                    <div class="group-info">
+                                        <div class="info-item">
+                                            <span class="info-label">Mã phòng:</span>
+                                            <span class="info-value code">@group.Code</span>
+                                        </div>
+                                        <div class="info-item">
+                                            <span class="info-label">Người tạo:</span>
+                                            <span class="info-value">Bạn</span>
+                                        </div>
+                                        <div class="info-item">
+                                            <span class="info-label">Thành viên:</span>
+                                            <span class="info-value">@group.Members.Count người</span>
+                                        </div>
+                                        <div class="info-item">
+                                            <span class="info-label">Ngày tạo:</span>
+                                            <span class="info-value">@group.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                        </div>
+                                    </div>
+                                    <div class="group-actions">
+                                        <button class="btn btn-primary" @onclick="() => EnterGroup(group.Id, true)">
+                                            Vào Phòng
+                                        </button>
+                                        <button class="btn btn-outline" @onclick="() => CopyGroupCode(group.Code)">
+                                            Sao chép mã
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <div class="empty-icon"></div>
+                            <h3>Chưa có phòng nào được tạo</h3>
+                            <p>Hãy tạo phòng đầu tiên để bắt đầu quản lý công việc</p>
+                            <a href="/creator/create-group" class="btn btn-primary">Tạo Phòng Ngay</a>
+                        </div>
+                    }
+                </div>
+
+                <!-- Phòng đã tham gia -->
+                <div class="groups-section">
+                    <h2 class="section-title">
+                        <span class="section-icon"></span>
+                        Phòng Đã Tham Gia
+                        <span class="section-count">@joinedGroups.Count</span>
+                    </h2>
+
+                    @if (joinedGroups.Any())
+                    {
+                        <div class="groups-grid">
+                            @foreach (var group in joinedGroups)
+                            {
+                                <div class="group-card joined">
+                                    <div class="group-header">
+                                        <h3 class="group-name">@group.Name</h3>
+                                        <span class="group-badge joined-badge">ĐÃ THAM GIA</span>
+                                    </div>
+                                    <div class="group-info">
+                                        <div class="info-item">
+                                            <span class="info-label">Mã phòng:</span>
+                                            <span class="info-value code">@group.Code</span>
+                                        </div>
+                                        <div class="info-item">
+                                            <span class="info-label">Người tạo:</span>
+                                            <span class="info-value">@group.Creator</span>
+                                        </div>
+                                        <div class="info-item">
+                                            <span class="info-label">Thành viên:</span>
+                                            <span class="info-value">@group.Members.Count người</span>
+                                        </div>
+                                        <div class="info-item">
+                                            <span class="info-label">Ngày tham gia:</span>
+                                            <span class="info-value">@group.CreatedAt.ToString("dd/MM/yyyy")</span>
+                                        </div>
+                                    </div>
+                                    <div class="group-actions">
+                                        <button class="btn btn-primary" @onclick="() => EnterGroup(group.Id, false)">
+                                            Vào Phòng
+                                        </button>
+                                        <button class="btn btn-outline" @onclick="() => CopyGroupCode(group.Code)">
+                                            Sao chép mã
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">
+                            <div class="empty-icon"></div>
+                            <h3>Chưa tham gia phòng nào</h3>
+                            <p>Hãy tham gia phòng để cùng làm việc với mọi người</p>
+                            <a href="/assignee/join-group" class="btn btn-secondary">Tham Gia Phòng</a>
+                        </div>
+                    }
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    private UserProfile? currentProfile;
+    private List<Group> createdGroups = new();
+    private List<Group> joinedGroups = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserProfile();
+        await LoadGroups();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
+                }
+                else
+                {
+                    currentProfile = new UserProfile
+                        {
+                            Username = user.Username,
+                            Email = user.Email ?? "",
+                            Phone = "Chưa cập nhật",
+                            Department = "Nhân viên",
+                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                        };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                    {
+                        Username = user.Username ?? "User",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                    };
+            }
+        }
+    }
+
+    private async Task LoadGroups()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            // Lấy phòng đã tạo
+            createdGroups = await GroupService.GetCreatedGroupsAsync(user.Username);
+            // Lấy phòng đã tham gia (loại bỏ phòng đã tạo)
+            var allJoinedGroups = await GroupService.GetUserGroupsAsync(user.Username);
+            joinedGroups = allJoinedGroups.Where(g => g.Creator != user.Username).ToList();
+        }
+    }
+
+    private async Task CopyGroupCode(string code)
+    {
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", code);
+        await JSRuntime.InvokeVoidAsync("alert", $"Đã sao chép mã phòng: {code}");
+    }
+
+    private async Task EnterGroup(string groupId, bool isCreator)
+    {
+        Console.WriteLine($" Entering group: {groupId}");
+
+        try
+        {
+            if (isCreator)
+            {
+                Console.WriteLine($" Navigating to creator room: {groupId}");
+                Navigation.NavigateTo($"/creator/room/{groupId}");
+            }
+            else
+            {
+                Console.WriteLine($" Navigating to assignee room: {groupId}");
+                Navigation.NavigateTo($"/assignee/room/{groupId}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" Navigation error: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi: {ex.Message}");
+        }
+    }
+}

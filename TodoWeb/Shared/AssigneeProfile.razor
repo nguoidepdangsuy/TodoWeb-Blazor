@@ -1,0 +1,81 @@
+﻿@page "/assignee/profile"
+@layout AssigneeLayout
+@inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+
+<div class="profile-container">
+    <div class="profile-header">
+        <h2> Chỉnh sửa Hồ sơ</h2>
+    </div>
+
+    <div class="profile-form">
+        <div class="form-group">
+            <label>Avatar URL:</label>
+            <input @bind="profile.Avatar" class="form-control" />
+        </div>
+
+        <div class="form-group">
+            <label>Số điện thoại:</label>
+            <input @bind="profile.Phone" class="form-control" />
+        </div>
+
+        <div class="form-group">
+            <label>Phòng ban:</label>
+            <input @bind="profile.Department" class="form-control" />
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-secondary" @onclick="Cancel">Hủy</button>
+            <button class="btn btn-primary" @onclick="SaveProfile">Lưu</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private UserProfile profile = new();
+    private UserProfile originalProfile = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
+            if (!string.IsNullOrEmpty(profileJson))
+            {
+                profile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson) ?? new UserProfile();
+                originalProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson) ?? new UserProfile();
+            }
+            else
+            {
+                profile = new UserProfile
+                    {
+                        Username = user.Username,
+                        Email = user.Email,
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = "https://via.placeholder.com/100/28a745/ffffff?text=" + user.Username[0]
+                    };
+                originalProfile = new UserProfile();
+            }
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            var profileJson = System.Text.Json.JsonSerializer.Serialize(profile);
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", $"profile_{user.Username}", profileJson);
+            await JSRuntime.InvokeVoidAsync("alert", "Đã lưu thông tin hồ sơ!");
+            Navigation.NavigateTo("/assignee/dashboard");
+        }
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/assignee/dashboard");
+    }
+}

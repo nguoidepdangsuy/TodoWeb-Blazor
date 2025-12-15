@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TodoWeb</title>
+    <base href="/" />
+    <link href="css/app.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="app">
+        <div style="padding: 50px; text-align: center; font-family: Arial;">
+            <h1> Đang tải TodoWeb...</h1>
+            <p>Vui lòng chờ trong giây lát</p>
+            <div id="loading-status">Khởi tạo ứng dụng</div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui" style="display: none;">
+        <div style="background: red; color: white; padding: 10px; position: fixed; bottom: 0; width: 100%;">
+            Đã xảy ra lỗi.
+            <a href="" class="reload" style="color: white; text-decoration: underline;">Tải lại trang</a>
+            <a class="dismiss" style="color: white; margin-left: 20px; cursor: pointer;">🗙</a>
+        </div>
+    </div>
+
+    <script src="_framework/blazor.webassembly.js"></script>
+
+    <script>
+        // Hiển thị trạng thái loading
+        let status = document.getElementById('loading-status');
+        let steps = [
+            'Đang khởi tạo ứng dụng...',
+        ];
+
+        let currentStep = 0;
+        let interval = setInterval(() => {
+            if (currentStep < steps.length) {
+                status.textContent = steps[currentStep];
+                currentStep++;
+            } else {
+                clearInterval(interval);
+            }
+        }, 2000);
+
+        // Bắt lỗi Blazor
+        window.Blazor = window.Blazor || {};
+        window.Blazor.start = window.Blazor.start || function () {
+            console.log('Blazor is starting...');
+        };
+
+        // Function để refresh notifications từ Blazor
+        window.refreshNotifications = function () {
+            // This will be called from Blazor to refresh notifications
+            console.log("Refresh notifications triggered");
+
+            // Có thể thêm logic để trigger refresh nếu cần
+            if (window.blazorRefreshers && window.blazorRefreshers.notifications) {
+                window.blazorRefreshers.notifications.forEach(callback => {
+                    try {
+                        callback();
+                    } catch (e) {
+                        console.error('Error in notification refresh callback:', e);
+                    }
+                });
+            }
+        };
+
+        // Helper để Blazor đăng ký refresh callbacks
+        window.registerBlazorRefresh = function (type, callback) {
+            if (!window.blazorRefreshers) {
+                window.blazorRefreshers = {};
+            }
+            if (!window.blazorRefreshers[type]) {
+                window.blazorRefreshers[type] = [];
+            }
+            window.blazorRefreshers[type].push(callback);
+            console.log(`Registered ${type} refresh callback`);
+        };
+
+        // Xử lý lỗi toàn cục
+        window.addEventListener('error', function (e) {
+            console.error('Global error:', e.error);
+        });
+
+        // Xử lý promise rejections
+        window.addEventListener('unhandledrejection', function (e) {
+            console.error('Unhandled promise rejection:', e.reason);
+        });
+    </script>
+</body>
+</html>

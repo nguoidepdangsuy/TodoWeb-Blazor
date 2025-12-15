@@ -1,0 +1,455 @@
+﻿@page "/profile"
+@inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+
+<div class="profile-page">
+    <div class="home-layout">
+        <!-- Sidebar bên trái -->
+        <aside class="profile-sidebar">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
+                    </div>
+                    <div class="profile-name">@currentProfile?.Username</div>
+                    <div class="profile-email">@currentProfile?.Email</div>
+                </div>
+                <div class="profile-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Số điện thoại</span>
+                        <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Phòng ban</span>
+                        <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Menu trong Sidebar -->
+            <nav class="sidebar-nav">
+                <a href="/home" class="nav-item">
+                    Trang Chủ
+                </a>
+                <a href="/my-groups" class="nav-item">
+                    Quản Lý Phòng
+                </a>
+                <a href="/profile" class="nav-item active">
+                    Cài Đặt
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main content bên phải -->
+        <main class="dashboard-main">
+            <div class="profile-container">
+                <div class="profile-header-section">
+                    <h1>Cài Đặt Hồ Sơ</h1>
+                    <p>Quản lý thông tin cá nhân và tài khoản của bạn</p>
+                </div>
+
+                <!-- Hiển thị form chỉnh sửa (đã bỏ phần xác thực mật khẩu) -->
+                <EditForm Model="@editProfile" OnValidSubmit="HandleSaveProfile">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary />
+
+                    <div class="profile-form">
+                        <!-- Avatar Section -->
+                        <div class="form-section">
+                            <h3>Ảnh đại diện</h3>
+                            <div class="avatar-upload-section">
+                                <div class="avatar-preview">
+                                    <img src="@editProfile.Avatar" alt="Avatar preview" class="avatar-large" />
+                                </div>
+                                <div class="avatar-controls">
+                                    <div class="form-group">
+                                        <label for="avatarUrl">URL ảnh đại diện:</label>
+                                        <InputText id="avatarUrl" @bind-Value="editProfile.Avatar"
+                                                   class="form-control" placeholder="Nhập URL ảnh đại diện" />
+                                        <small class="form-text text-muted">
+                                            Bạn có thể sử dụng các dịch vụ như Imgur, Cloudinary hoặc URL trực tiếp
+                                        </small>
+                                    </div>
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="ResetAvatar">
+                                        Đặt lại ảnh mặc định
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Thông tin cá nhân -->
+                        <div class="form-section">
+                            <h3>Thông tin cá nhân</h3>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="fullName" class="required-field">Họ và tên:</label>
+                                        <InputText id="fullName" @bind-Value="editProfile.FullName"
+                                                   class="form-control" placeholder="Nhập họ và tên đầy đủ" />
+                                        <ValidationMessage For="@(() => editProfile.FullName)" />
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="username" class="required-field">Tên đăng nhập:</label>
+                                        <InputText id="username" @bind-Value="editProfile.Username"
+                                                   class="form-control" placeholder="Nhập tên đăng nhập" />
+                                        <ValidationMessage For="@(() => editProfile.Username)" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="email" class="required-field">Email:</label>
+                                        <InputText id="email" @bind-Value="editProfile.Email"
+                                                   class="form-control" placeholder="Nhập địa chỉ email"
+                                                   type="email" />
+                                        <ValidationMessage For="@(() => editProfile.Email)" />
+                                        <small class="form-text text-muted">
+                                            Email sẽ được sử dụng để nhận thông báo và khôi phục mật khẩu
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="phone">Số điện thoại:</label>
+                                        <InputText id="phone" @bind-Value="editProfile.Phone"
+                                                   class="form-control" placeholder="Nhập số điện thoại"
+                                                   type="tel" />
+                                        <small class="form-text text-muted">
+                                            Số điện thoại để liên hệ trong trường hợp cần thiết
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="department">Phòng ban:</label>
+                                <InputSelect id="department" @bind-Value="editProfile.Department" class="form-control">
+                                    <option value="">Chọn phòng ban</option>
+                                    <option value="Nhân viên">Nhân viên</option>
+                                    <option value="Quản lý">Quản lý</option>
+                                    <option value="Kỹ thuật">Kỹ thuật</option>
+                                    <option value="Kinh doanh">Kinh doanh</option>
+                                    <option value="Marketing">Marketing</option>
+                                    <option value="Nhân sự">Nhân sự</option>
+                                    <option value="Kế toán">Kế toán</option>
+                                    <option value="IT">IT</option>
+                                    <option value="Phát triển">Phát triển</option>
+                                    <option value="Thiết kế">Thiết kế</option>
+                                </InputSelect>
+                                <small class="form-text text-muted">
+                                    Chọn phòng ban bạn đang làm việc
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Đổi mật khẩu -->
+                        <div class="form-section">
+                            <h3>Đổi mật khẩu</h3>
+                            <div class="password-note">
+                                <small class="text-muted">
+                                    Để trống nếu bạn không muốn thay đổi mật khẩu
+                                </small>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="newPassword">Mật khẩu mới:</label>
+                                        <InputText id="newPassword" type="password"
+                                                   @bind-Value="passwordModel.NewPassword"
+                                                   class="form-control" placeholder="Nhập mật khẩu mới (ít nhất 6 ký tự)" />
+                                        <small class="form-text text-muted">
+                                            Mật khẩu phải có ít nhất 6 ký tự
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label for="confirmPassword">Xác nhận mật khẩu mới:</label>
+                                        <InputText id="confirmPassword" type="password"
+                                                   @bind-Value="passwordModel.ConfirmPassword"
+                                                   class="form-control" placeholder="Nhập lại mật khẩu mới" />
+                                        <small class="form-text text-muted">
+                                            Nhập lại mật khẩu để xác nhận
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(passwordModel.ConfirmPassword) &&
+                            passwordModel.NewPassword != passwordModel.ConfirmPassword)
+                            {
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    Mật khẩu xác nhận không khớp!
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(passwordModel.NewPassword) && passwordModel.NewPassword.Length < 6)
+                            {
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    Mật khẩu phải có ít nhất 6 ký tự!
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Thông báo xác nhận -->
+                        <div class="form-section info-section">
+                            <h3>Thông tin xác nhận</h3>
+                            <div class="confirmation-info">
+                                <div class="info-item">
+                                    <strong>Họ và tên:</strong> <span>@editProfile.FullName</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Tên đăng nhập:</strong> <span>@editProfile.Username</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Email:</strong> <span>@editProfile.Email</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Số điện thoại:</strong> <span>@(string.IsNullOrEmpty(editProfile.Phone) ? "Chưa cập nhật" : editProfile.Phone)</span>
+                                </div>
+                                <div class="info-item">
+                                    <strong>Phòng ban:</strong> <span>@editProfile.Department</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" @onclick="CancelEdit">
+                                <i class="fas fa-times"></i> Hủy bỏ
+                            </button>
+                            <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                                @if (isLoading)
+                                {
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <span>Đang lưu...</span>
+                                }
+                                else
+                                {
+                                    <i class="fas fa-save"></i>
+                                    <span>Lưu thay đổi</span>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </EditForm>
+            </div>
+        </main>
+    </div>
+</div>
+
+@code {
+    private UserProfile currentProfile = new();
+    private EditProfileModel editProfile = new();
+    private PasswordChangeModel passwordModel = new();
+    private bool isLoading = false;
+    private UserProfile originalProfile = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserProfile();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            try
+            {
+                var profileJson = await JSRuntime.InvokeAsync<string>(
+                    "localStorage.getItem",
+                    $"profile_{user.Username}"
+                );
+
+                if (!string.IsNullOrEmpty(profileJson))
+                {
+                    currentProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson) ?? new UserProfile();
+
+                    // Copy to edit model
+                    editProfile = new EditProfileModel
+                        {
+                            Username = currentProfile.Username ?? user.Username,
+                            FullName = currentProfile.FullName ?? user.Username,
+                            Email = currentProfile.Email ?? user.Email ?? "",
+                            Phone = currentProfile.Phone ?? "",
+                            Department = currentProfile.Department ?? "Nhân viên",
+                            Avatar = currentProfile.Avatar ?? $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username?[0]}"
+                        };
+
+                    originalProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson) ?? new UserProfile();
+                }
+                else
+                {
+                    // Create default profile
+                    currentProfile = new UserProfile
+                        {
+                            Username = user.Username,
+                            FullName = user.Username,
+                            Email = user.Email ?? "",
+                            Phone = "Chưa cập nhật",
+                            Department = "Nhân viên",
+                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username?[0]}"
+                        };
+
+                    editProfile = new EditProfileModel
+                        {
+                            Username = user.Username,
+                            FullName = user.Username,
+                            Email = user.Email ?? "",
+                            Phone = "",
+                            Department = "Nhân viên",
+                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username?[0]}"
+                        };
+
+                    originalProfile = new UserProfile();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading profile: {ex.Message}");
+                await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi tải thông tin hồ sơ!");
+            }
+        }
+    }
+
+    private async Task HandleSaveProfile()
+    {
+        isLoading = true;
+
+        try
+        {
+            var user = await AuthService.GetCurrentUserAsync();
+            if (user != null)
+            {
+                // Validate email
+                if (string.IsNullOrEmpty(editProfile.Email) || !IsValidEmail(editProfile.Email))
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "Vui lòng nhập địa chỉ email hợp lệ!");
+                    isLoading = false;
+                    return;
+                }
+
+                // Validate password change if new password is provided
+                if (!string.IsNullOrEmpty(passwordModel.NewPassword))
+                {
+                    if (passwordModel.NewPassword != passwordModel.ConfirmPassword)
+                    {
+                        await JSRuntime.InvokeVoidAsync("alert", "Mật khẩu xác nhận không khớp!");
+                        isLoading = false;
+                        return;
+                    }
+
+                    if (passwordModel.NewPassword.Length < 6)
+                    {
+                        await JSRuntime.InvokeVoidAsync("alert", "Mật khẩu mới phải có ít nhất 6 ký tự!");
+                        isLoading = false;
+                        return;
+                    }
+
+                    // Thực hiện đổi mật khẩu
+                    // Nếu AuthService chưa có ChangePasswordAsync, có thể bỏ qua hoặc implement sau
+                    // var passwordChanged = await AuthService.ChangePasswordAsync(user.Username, passwordModel.NewPassword);
+                    // if (!passwordChanged) { ... }
+                }
+
+                // Update profile
+                var updatedProfile = new UserProfile
+                    {
+                        Username = editProfile.Username,
+                        FullName = editProfile.FullName,
+                        Email = editProfile.Email,
+                        Phone = string.IsNullOrEmpty(editProfile.Phone) ? "Chưa cập nhật" : editProfile.Phone,
+                        Department = editProfile.Department,
+                        Avatar = editProfile.Avatar
+                    };
+
+                // Save to localStorage
+                var profileJson = System.Text.Json.JsonSerializer.Serialize(updatedProfile);
+                await JSRuntime.InvokeVoidAsync(
+                    "localStorage.setItem",
+                    $"profile_{user.Username}",
+                    profileJson
+                );
+
+                // Reset password fields
+                passwordModel = new PasswordChangeModel();
+
+                await JSRuntime.InvokeVoidAsync("alert", "Đã cập nhật thông tin hồ sơ thành công!");
+                await Task.Delay(1000); // Chờ 1 giây để người dùng thấy thông báo
+                Navigation.NavigateTo("/home", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi khi lưu hồ sơ: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void ResetAvatar()
+    {
+        var user = AuthService.GetCurrentUserAsync().Result;
+        if (user != null)
+        {
+            editProfile.Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username?[0]}";
+            StateHasChanged();
+        }
+    }
+
+    private void CancelEdit()
+    {
+        // Reset to original values
+        passwordModel = new PasswordChangeModel();
+        // Có thể thêm logic reset form về giá trị ban đầu nếu cần
+        StateHasChanged();
+    }
+
+    // Model classes
+    public class EditProfileModel
+    {
+        [Required(ErrorMessage = "Họ tên là bắt buộc")]
+        [StringLength(50, ErrorMessage = "Họ tên không được vượt quá 50 ký tự")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Tên đăng nhập là bắt buộc")]
+        [StringLength(50, ErrorMessage = "Tên đăng nhập không được vượt quá 50 ký tự")]
+        public string Username { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email là bắt buộc")]
+        [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+        public string Email { get; set; } = string.Empty;
+
+        public string Phone { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string Avatar { get; set; } = string.Empty;
+    }
+
+    public class PasswordChangeModel
+    {
+        public string NewPassword { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}
