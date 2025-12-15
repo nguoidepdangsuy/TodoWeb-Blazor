@@ -301,6 +301,9 @@
                                     <span>@selectedTask.DueDate.ToString("dd/MM/yyyy")</span>
                                 }
                             </div>
+                            <div class="info-item">
+                                <strong>Người nhận:</strong> @selectedTask.AssigneeUsername
+                            </div>
                         </div>
                         @if (!string.IsNullOrEmpty(selectedTask.Description))
                         {
@@ -321,26 +324,46 @@
                                            accept=".doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar" />
                                 <span>+ Thêm file</span>
                             </label>
+
+                            <!-- Nút đến trang nộp bài riêng -->
+                            <button class="btn btn-primary ms-2"
+                                    @onclick="NavigateToSubmitPage">
+                                <i class="fas fa-external-link-alt me-1"></i>
+                                Đến trang nộp bài
+                            </button>
                         </div>
                         @if (submissions.Any())
                         {
                             <div class="submissions-list">
-                                <h6>File đã nộp:</h6>
+                                <h6>File đã nộp (@submissions.Count):</h6>
                                 @foreach (var submission in submissions)
                                 {
                                     <div class="submission-item">
                                         <div class="file-info">
-                                            <span class="file-icon"></span>
+                                            <span class="file-icon">
+                                                @GetFileIcon(submission.FileExtension)
+                                            </span>
                                             <div class="file-details">
                                                 <span class="file-name">@submission.FileName</span>
-                                                <small class="file-size">(@FormatFileSize(submission.FileSize))</small>
+                                                <small class="file-size">(@submission.FormattedFileSize)</small>
+                                                <div class="file-meta">
+                                                    <small>Người nộp: @submission.SubmittedBy</small>
+                                                    <small>Thời gian: @submission.SubmittedAt.ToString("dd/MM/yyyy HH:mm")</small>
+                                                </div>
                                             </div>
                                         </div>
-                                        <button class="btn btn-sm btn-outline-danger delete-btn"
-                                                @onclick="() => DeleteSubmission(submission.Id)"
-                                                title="Xóa file">
-                                            🗑️
-                                        </button>
+                                        <div class="file-actions">
+                                            <button class="btn btn-sm btn-outline-primary"
+                                                    @onclick="() => DownloadFile(submission)"
+                                                    title="Tải xuống">
+                                                📥
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-btn"
+                                                    @onclick="() => DeleteSubmission(submission.Id)"
+                                                    title="Xóa file">
+                                                🗑️
+                                            </button>
+                                        </div>
                                     </div>
                                 }
                             </div>
@@ -439,24 +462,24 @@
                 else
                 {
                     currentProfile = new UserProfile
-                        {
-                            Username = user.Username,
-                            Email = user.Email ?? "",
-                            Phone = "Chưa cập nhật",
-                            Department = "Nhân viên",
-                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
-                        };
+                    {
+                        Username = user.Username,
+                        Email = user.Email ?? "",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                    };
                 }
             }
             catch
             {
                 currentProfile = new UserProfile
-                    {
-                        Username = user.Username ?? "User",
-                        Phone = "Chưa cập nhật",
-                        Department = "Nhân viên",
-                        Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
-                    };
+                {
+                    Username = user.Username ?? "User",
+                    Phone = "Chưa cập nhật",
+                    Department = "Nhân viên",
+                    Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                };
             }
         }
     }
@@ -475,7 +498,7 @@
 
             // Debug log để xem thông tin group
             await JSRuntime.InvokeVoidAsync("console.log",
-                $"Group loaded: {currentGroup.Name}, Members count: {currentGroup.Members?.Count ?? 0}, Creator: {currentGroup.Creator}");
+                $"Group loaded: {currentGroup.Name}, Members count: {currentGroup.Members?.Count ?? 0}, Creator: {currentGroup.CreatorUsername}");
         }
         catch (Exception ex)
         {
@@ -529,15 +552,15 @@
                         continue;
 
                     var memberProfile = await LoadMemberProfile(memberUsername);
-                    var isCreator = memberUsername == currentGroup.Creator;
+                    var isCreator = memberUsername == currentGroup.CreatorUsername;
 
                     roomMembers.Add(new MemberInfo
-                        {
-                            Username = memberProfile?.Username ?? memberUsername,
-                            Department = memberProfile?.Department ?? "Nhân viên",
-                            Avatar = memberProfile?.Avatar ?? GetDefaultAvatar(memberUsername, isCreator),
-                            IsCreator = isCreator
-                        });
+                    {
+                        Username = memberProfile?.Username ?? memberUsername,
+                        Department = memberProfile?.Department ?? "Nhân viên",
+                        Avatar = memberProfile?.Avatar ?? GetDefaultAvatar(memberUsername, isCreator),
+                        IsCreator = isCreator
+                    });
 
                     await JSRuntime.InvokeVoidAsync("console.log",
                         $"Added member: {memberUsername}, IsCreator: {isCreator}");
@@ -549,12 +572,12 @@
 
                     // Thêm với thông tin mặc định
                     roomMembers.Add(new MemberInfo
-                        {
-                            Username = memberUsername,
-                            Department = "Nhân viên",
-                            Avatar = GetDefaultAvatar(memberUsername, memberUsername == currentGroup.Creator),
-                            IsCreator = memberUsername == currentGroup.Creator
-                        });
+                    {
+                        Username = memberUsername,
+                        Department = "Nhân viên",
+                        Avatar = GetDefaultAvatar(memberUsername, memberUsername == currentGroup.CreatorUsername),
+                        IsCreator = memberUsername == currentGroup.CreatorUsername
+                    });
                 }
             }
 
@@ -605,13 +628,13 @@
 
             // Nếu không có trong localStorage, tạo profile mặc định
             return new UserProfile
-                {
-                    Username = username,
-                    Department = "Nhân viên",
-                    Email = $"{username}@company.com",
-                    Phone = "Chưa cập nhật",
-                    Avatar = GetDefaultAvatar(username, false)
-                };
+            {
+                Username = username,
+                Department = "Nhân viên",
+                Email = $"{username}@company.com",
+                Phone = "Chưa cập nhật",
+                Avatar = GetDefaultAvatar(username, false)
+            };
         }
         catch (Exception ex)
         {
@@ -620,29 +643,11 @@
 
             // Trả về profile mặc định nếu có lỗi
             return new UserProfile
-                {
-                    Username = username,
-                    Department = "Nhân viên",
-                    Avatar = GetDefaultAvatar(username, false)
-                };
-        }
-    }
-
-    private async Task<bool> TaskExistsInStorage(string taskId)
-    {
-        try
-        {
-            var tasksJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "tasks");
-            if (!string.IsNullOrEmpty(tasksJson))
             {
-                var allTasksInStorage = System.Text.Json.JsonSerializer.Deserialize<List<WorkTask>>(tasksJson) ?? new List<WorkTask>();
-                return allTasksInStorage.Any(t => t.Id == taskId);
-            }
-            return false;
-        }
-        catch
-        {
-            return false;
+                Username = username,
+                Department = "Nhân viên",
+                Avatar = GetDefaultAvatar(username, false)
+            };
         }
     }
 
@@ -650,47 +655,25 @@
     {
         try
         {
-            // Lấy trực tiếp từ localStorage (không qua service)
-            var tasksJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "tasks");
-            var allTasksInStorage = !string.IsNullOrEmpty(tasksJson)
-                ? System.Text.Json.JsonSerializer.Deserialize<List<WorkTask>>(tasksJson) ?? new List<WorkTask>()
-                : new List<WorkTask>();
+            // Lấy từ service (thay vì localStorage)
+            var allTasksFromService = await TaskService.GetTasksByAssigneeAsync(currentUsername);
+
+            // Lọc tasks trong phòng hiện tại
+            allTasks = allTasksFromService
+                .Where(t => t.GroupId == GroupId)
+                .ToList();
 
             await JSRuntime.InvokeVoidAsync("console.log",
-                $" LOADING DIRECT FROM LOCALSTORAGE: {allTasksInStorage.Count} tasks");
-
-            // Lọc tasks được giao cho user hiện tại TRONG PHÒNG HIỆN TẠI
-            allTasks = allTasksInStorage.Where(t =>
-                t.Assignee == currentUsername &&
-                t.GroupId == GroupId  // QUAN TRỌNG: Chỉ lấy tasks của phòng hiện tại
-            ).ToList();
+                $" LOADING FROM SERVICE: {allTasksFromService.Count} tasks total");
+            await JSRuntime.InvokeVoidAsync("console.log",
+                $" FILTERED FOR ROOM {GroupId}: {allTasks.Count} tasks");
 
             // DEBUG: Log chi tiết
             foreach (var task in allTasks)
             {
                 await JSRuntime.InvokeVoidAsync("console.log",
-                    $" TASK IN CURRENT ROOM: '{task.Title}', Group: {task.GroupId}, Current Group: {GroupId}");
+                    $" TASK IN CURRENT ROOM: '{task.Title}', Group: {task.GroupId}, Assignee: {task.AssigneeUsername}");
             }
-
-            // DEBUG: Log tasks từ phòng khác (để debug)
-            var tasksFromOtherRooms = allTasksInStorage.Where(t =>
-                t.Assignee == currentUsername &&
-                t.GroupId != GroupId
-            ).ToList();
-
-            if (tasksFromOtherRooms.Any())
-            {
-                await JSRuntime.InvokeVoidAsync("console.log",
-                    $" TASKS FROM OTHER ROOMS (IGNORED): {tasksFromOtherRooms.Count}");
-                foreach (var task in tasksFromOtherRooms)
-                {
-                    await JSRuntime.InvokeVoidAsync("console.log",
-                        $"   - '{task.Title}' from Group: {task.GroupId}");
-                }
-            }
-
-            await JSRuntime.InvokeVoidAsync("console.log",
-                $" FINAL TASKS FOR USER IN ROOM {GroupId}: {allTasks.Count} tasks");
 
             completedTasks = allTasks.Where(t => t.IsCompleted).ToList();
         }
@@ -797,7 +780,8 @@
     private async Task ViewTaskDetail(WorkTask task)
     {
         selectedTask = task;
-        submissions = await TaskSubmissionService.GetSubmissionsAsync(task.Id);
+        // Gọi phương thức đúng theo interface mới
+        submissions = await TaskSubmissionService.GetSubmissionsByTaskAsync(task.Id);
         StateHasChanged();
     }
 
@@ -813,27 +797,28 @@
         var file = e.File;
         if (file != null && selectedTask != null)
         {
-            var submission = new TaskSubmission
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    TaskId = selectedTask.Id,
-                    FileName = file.Name,
-                    FileSize = file.Size,
-                    FileUrl = "uploaded/" + file.Name,
-                    SubmittedAt = DateTime.Now,
-                    SubmittedBy = currentUsername,
-                    IsCompleted = false
-                };
+            // Tạo URL upload tạm thời (trong thực tế sẽ upload lên Supabase Storage)
+            var fileUrl = $"uploads/{Guid.NewGuid()}_{file.Name}";
 
-            var result = await TaskSubmissionService.SubmitTaskAsync(submission);
+            var submission = new TaskSubmission
+            {
+                Id = Guid.NewGuid().ToString(),
+                TaskId = selectedTask.Id,
+                FileName = file.Name,
+                FileSize = file.Size,
+                FileUrl = fileUrl,
+                SubmittedAt = DateTime.Now,
+                SubmittedBy = currentUsername,
+                IsCompleted = false
+            };
+
+            // Gọi phương thức đúng theo interface mới
+            var result = await TaskSubmissionService.CreateSubmissionAsync(submission);
             if (result)
             {
                 submissions.Add(submission);
                 StateHasChanged();
                 await JSRuntime.InvokeVoidAsync("alert", $"Đã tải lên file: {file.Name}");
-
-                // Refresh notifications ở layout chính
-                await RefreshMainLayoutNotifications();
 
                 // Debug log
                 await JSRuntime.InvokeVoidAsync("console.log",
@@ -846,16 +831,33 @@
         }
     }
 
-    private async Task RefreshMainLayoutNotifications()
+    private async Task DownloadFile(TaskSubmission submission)
     {
         try
         {
-            await JSRuntime.InvokeVoidAsync("refreshNotifications");
+            // Tạo blob URL để tải file (trong thực tế sẽ là URL từ Supabase Storage)
+            await JSRuntime.InvokeVoidAsync("open", submission.FileUrl, "_blank");
+            await JSRuntime.InvokeVoidAsync("alert", $"Đang mở file: {submission.FileName}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error refreshing notifications: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi khi tải file: {ex.Message}");
         }
+    }
+
+    private string GetFileIcon(string fileExtension)
+    {
+        return fileExtension.ToLower() switch
+        {
+            ".pdf" => "📄",
+            ".doc" or ".docx" => "📝",
+            ".xls" or ".xlsx" => "📊",
+            ".ppt" or ".pptx" => "📽️",
+            ".zip" or ".rar" => "📦",
+            ".jpg" or ".jpeg" or ".png" or ".gif" => "🖼️",
+            ".txt" => "📄",
+            _ => "📎"
+        };
     }
 
     private async Task MarkAsCompleted()
@@ -864,9 +866,18 @@
         {
             selectedTask.IsCompleted = true;
             selectedTask.CompletedDate = DateTime.Now;
+
+            // Cập nhật task
             var result = await TaskService.UpdateTaskAsync(selectedTask);
             if (result)
             {
+                // Đánh dấu submission là đã hoàn thành
+                if (submissions.Any())
+                {
+                    var lastSubmission = submissions.Last();
+                    await TaskSubmissionService.MarkSubmissionAsCompletedAsync(lastSubmission.Id);
+                }
+
                 await LoadTasks();
                 CloseTaskDetail();
                 await JSRuntime.InvokeVoidAsync("alert", "Đã đánh dấu công việc hoàn thành!");
@@ -912,17 +923,12 @@
         await JSRuntime.InvokeVoidAsync("console.log", "Đã làm mới danh sách task");
     }
 
-    private string FormatFileSize(long bytes)
+    private void NavigateToSubmitPage()
     {
-        string[] sizes = { "B", "KB", "MB", "GB" };
-        int order = 0;
-        double len = bytes;
-        while (len >= 1024 && order < sizes.Length - 1)
+        if (selectedTask != null)
         {
-            order++;
-            len = len / 1024;
+            Navigation.NavigateTo($"/assignee/submit-task/{selectedTask.Id}");
         }
-        return $"{len:0.##} {sizes[order]}";
     }
 
     private async Task PreviousMonth()

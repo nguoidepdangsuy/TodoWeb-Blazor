@@ -18,5 +18,18 @@ namespace TodoWeb.Models
 
         public bool IsAuthenticated { get; set; }
         public UserType? UserType { get; set; }
+
+        // Thông tin bổ sung
+        public string FullName { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string Department { get; set; } = string.Empty;
+        public string Avatar { get; set; } = "https://via.placeholder.com/100";
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+        // Thống kê
+        public int CreatedGroupCount { get; set; }
+        public int JoinedGroupCount { get; set; }
+        public int AssignedTaskCount { get; set; }
+        public int CompletedTaskCount { get; set; }
     }
 }

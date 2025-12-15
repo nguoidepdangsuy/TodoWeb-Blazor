@@ -2,266 +2,60 @@
 @inject IGroupService GroupService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
-@inject IJSRuntime JSRuntime
 
-<div class="create-group-page">
-    <div class="home-layout">
-        <!-- Sidebar bên trái -->
-        <aside class="profile-sidebar">
-            <div class="profile-card">
-                <div class="profile-header">
-                    <div class="profile-avatar">
-                        <img src="@currentProfile?.Avatar" alt="Avatar" class="avatar" />
-                    </div>
-                    <div class="profile-name">@currentProfile?.Username</div>
-                    <div class="profile-email">@currentProfile?.Email</div>
-                </div>
-                <div class="profile-details">
-                    <div class="detail-item">
-                        <span class="detail-label">Số điện thoại</span>
-                        <span class="detail-value">@(currentProfile?.Phone ?? "Chưa cập nhật")</span>
-                    </div>
-                    <div class="detail-item">
-                        <span class="detail-label">Phòng ban</span>
-                        <span class="detail-value">@(currentProfile?.Department ?? "Nhân viên")</span>
-                    </div>
-                </div>
-            </div>
+<EditForm Model="@newGroup" OnValidSubmit="@HandleCreateGroup">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
 
-            <!-- Navigation Menu trong Sidebar -->
-            <nav class="sidebar-nav">
-                <a href="/home" class="nav-item">
-                    Trang Chủ
-                </a>
-                @if (hasGroups)
-                {
-                    <a href="/my-groups" class="nav-item">
-                        Quản Lý Phòng
-                        <span class="group-count">@userGroups.Count</span>
-                    </a>
-                }
-                <a href="/profile" class="nav-item">
-                    Cài Đặt
-                </a>
-            </nav>
-        </aside>
-
-        <!-- Main content bên phải -->
-        <main class="dashboard-main">
-            <div class="create-group-container">
-                <h1>Tạo Phòng</h1>
-
-                @if (string.IsNullOrEmpty(groupCode))
-                {
-                    <!-- Form tạo nhóm -->
-                    <div class="create-group-form">
-                        <div class="form-group">
-                            <label for="groupName" class="required-field">Đặt tên phòng:</label>
-                            <input @bind="groupName" @bind:event="oninput" class="form-control"
-                                   placeholder="Nhập tên phòng của bạn" />
-                            @if (showError)
-                            {
-                                <div class="validation-message">@errorMessage</div>
-                            }
-                        </div>
-
-                        <button class="btn btn-primary create-btn" @onclick="HandleCreateGroup" disabled="@isCreating">
-                            @if (isCreating)
-                            {
-                                <span>Đang tạo...</span>
-                            }
-                            else
-                            {
-                                <span>Tạo Phòng</span>
-                            }
-                        </button>
-                    </div>
-                }
-                else
-                {
-                    <!-- Hiển thị mã code sau khi tạo thành công -->
-                    <div class="success-section">
-                        <div class="success-icon"></div>
-                        <h2>Phòng đã được tạo thành công!</h2>
-
-                        <div class="group-info-card">
-                            <div class="group-name">@groupName</div>
-                            <div class="group-code-section">
-                                <label>Mã phòng:</label>
-                                <div class="code-display">
-                                    <span class="code-text">@groupCode</span>
-                                    <button class="btn btn-outline-primary copy-btn" @onclick="CopyCode">
-                                        Sao chép
-                                    </button>
-                                </div>
-                                <small class="code-hint">Chia sẻ mã này để mời thành viên tham gia phòng</small>
-                            </div>
-                        </div>
-                    </div>
-                }
-            </div>
-        </main>
+    <div class="form-group">
+        <label for="groupName">Tên phòng:</label>
+        <InputText id="groupName" @bind-Value="newGroup.Name"
+                   class="form-control" placeholder="Nhập tên phòng" />
+        <ValidationMessage For="@(() => newGroup.Name)" />
     </div>
-</div>
+
+    <div class="form-group">
+        <label for="groupCode">Mã phòng (6 ký tự):</label>
+        <InputText id="groupCode" @bind-Value="newGroup.Code"
+                   class="form-control" placeholder="Nhập mã phòng"
+                   maxlength="6" />
+        <ValidationMessage For="@(() => newGroup.Code)" />
+    </div>
+
+    <button type="submit" class="btn btn-primary" disabled="@isLoading">
+        @if (isLoading)
+        {
+            <span>Đang tạo...</span>
+        }
+        else
+        {
+            <span>Tạo Phòng</span>
+        }
+    </button>
+</EditForm>
 
 @code {
-    private UserProfile? currentProfile;
-    private string groupName = string.Empty;
-    private string groupCode = string.Empty;
-    private bool isCreating = false;
-    private bool showError = false;
-    private string errorMessage = string.Empty;
-    private List<Group> userGroups = new();
-    private bool hasGroups = false;
-
-    protected override async Task OnInitializedAsync()
-    {
-        await LoadUserProfile();
-        await LoadUserGroups();
-    }
-
-    private async Task LoadUserProfile()
-    {
-        var user = await AuthService.GetCurrentUserAsync();
-        if (user != null)
-        {
-            try
-            {
-                var profileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{user.Username}");
-                if (!string.IsNullOrEmpty(profileJson))
-                {
-                    currentProfile = System.Text.Json.JsonSerializer.Deserialize<UserProfile>(profileJson);
-                }
-                else
-                {
-                    currentProfile = new UserProfile
-                        {
-                            Username = user.Username,
-                            Email = user.Email ?? "",
-                            Phone = "Chưa cập nhật",
-                            Department = "Nhân viên",
-                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
-                        };
-                }
-            }
-            catch
-            {
-                currentProfile = new UserProfile
-                    {
-                        Username = user.Username ?? "User",
-                        Phone = "Chưa cập nhật",
-                        Department = "Nhân viên",
-                        Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
-                    };
-            }
-        }
-    }
-
-    private async Task LoadUserGroups()
-    {
-        var user = await AuthService.GetCurrentUserAsync();
-        if (user != null)
-        {
-            userGroups = await GroupService.GetUserGroupsAsync(user.Username);
-            hasGroups = userGroups.Any();
-        }
-    }
+    private Group newGroup = new();
+    private bool isLoading = false;
 
     private async Task HandleCreateGroup()
     {
-        // Reset error
-        showError = false;
-        errorMessage = string.Empty;
+        isLoading = true;
 
-        // Validate tên phòng
-        if (string.IsNullOrWhiteSpace(groupName))
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
         {
-            showError = true;
-            errorMessage = "Vui lòng nhập tên phòng";
-            return;
-        }
+            newGroup.CreatorUsername = user.Username;
+            newGroup.CreatedAt = DateTime.Now;
+            newGroup.UpdatedAt = DateTime.Now;
 
-        // Kiểm tra tên phòng đã tồn tại chưa
-        var existingGroups = await GroupService.GetGroupsAsync();
-        var isNameExists = existingGroups.Any(g =>
-            g.Name.Trim().Equals(groupName.Trim(), StringComparison.OrdinalIgnoreCase));
-
-        if (isNameExists)
-        {
-            showError = true;
-            errorMessage = "Tên phòng đã tồn tại. Vui lòng chọn tên khác.";
-            return;
-        }
-
-        isCreating = true;
-
-        try
-        {
-            var group = new Group
-                {
-                    Name = groupName.Trim(),
-                    Code = await GenerateUniqueCodeAsync()
-                };
-
-            var result = await GroupService.CreateGroupAsync(group);
-
+            var result = await GroupService.CreateGroupAsync(newGroup);
             if (result)
             {
-                groupCode = group.Code;
-                // Cập nhật lại danh sách nhóm sau khi tạo thành công
-                await LoadUserGroups();
-                StateHasChanged(); // Refresh UI để hiển thị Quản Lý Nhóm
-                await JSRuntime.InvokeVoidAsync("alert", $"Đã tạo phòng '{groupName}' thành công!");
-            }
-            else
-            {
-                await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi tạo phòng. Vui lòng thử lại!");
+                Navigation.NavigateTo($"/creator/room/{newGroup.Id}");
             }
         }
-        catch (Exception ex)
-        {
-            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi: {ex.Message}");
-        }
-        finally
-        {
-            isCreating = false;
-        }
-    }
 
-    private async Task<string> GenerateUniqueCodeAsync()
-    {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        var random = new Random();
-        var existingGroups = await GroupService.GetGroupsAsync();
-        var existingCodes = existingGroups.Select(g => g.Code).ToHashSet();
-
-        string code;
-        do
-        {
-            // Tạo mã 6 ký tự ngẫu nhiên
-            code = new string(Enumerable.Repeat(chars, 6)
-                .Select(s => s[random.Next(s.Length)]).ToArray());
-        } while (existingCodes.Contains(code));
-
-        return code;
-    }
-
-    private async Task CopyCode()
-    {
-        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", groupCode);
-        await JSRuntime.InvokeVoidAsync("alert", "Đã sao chép mã phòng!");
-    }
-
-    private void GoToDashboard()
-    {
-        Navigation.NavigateTo("/creator/dashboard");
-    }
-
-    private void CreateAnotherGroup()
-    {
-        groupName = string.Empty;
-        groupCode = string.Empty;
-        showError = false;
-        errorMessage = string.Empty;
+        isLoading = false;
     }
 }

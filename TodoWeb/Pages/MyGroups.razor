@@ -132,8 +132,9 @@
                                             <span class="info-value code">@group.Code</span>
                                         </div>
                                         <div class="info-item">
+                                            <!-- Sửa: CreatorUsername thay vì Creator -->
                                             <span class="info-label">Người tạo:</span>
-                                            <span class="info-value">@group.Creator</span>
+                                            <span class="info-value">@group.CreatorUsername</span>
                                         </div>
                                         <div class="info-item">
                                             <span class="info-label">Thành viên:</span>
@@ -197,24 +198,24 @@
                 else
                 {
                     currentProfile = new UserProfile
-                        {
-                            Username = user.Username,
-                            Email = user.Email ?? "",
-                            Phone = "Chưa cập nhật",
-                            Department = "Nhân viên",
-                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
-                        };
+                    {
+                        Username = user.Username,
+                        Email = user.Email ?? "",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                    };
                 }
             }
             catch
             {
                 currentProfile = new UserProfile
-                    {
-                        Username = user.Username ?? "User",
-                        Phone = "Chưa cập nhật",
-                        Department = "Nhân viên",
-                        Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
-                    };
+                {
+                    Username = user.Username ?? "User",
+                    Phone = "Chưa cập nhật",
+                    Department = "Nhân viên",
+                    Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                };
             }
         }
     }
@@ -228,7 +229,8 @@
             createdGroups = await GroupService.GetCreatedGroupsAsync(user.Username);
             // Lấy phòng đã tham gia (loại bỏ phòng đã tạo)
             var allJoinedGroups = await GroupService.GetUserGroupsAsync(user.Username);
-            joinedGroups = allJoinedGroups.Where(g => g.Creator != user.Username).ToList();
+            // Sửa: CreatorUsername thay vì Creator
+            joinedGroups = allJoinedGroups.Where(g => g.CreatorUsername != user.Username).ToList();
         }
     }
 

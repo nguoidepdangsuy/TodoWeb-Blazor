@@ -1,0 +1,75 @@
+﻿@page "/assignee/submit/{taskId}"
+@inject ITaskSubmissionService SubmissionService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<EditForm Model="@newSubmission" OnValidSubmit="@HandleSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="form-group">
+        <label for="fileName">Tên file:</label>
+        <InputText id="fileName" @bind-Value="newSubmission.FileName"
+                   class="form-control" />
+        <ValidationMessage For="@(() => newSubmission.FileName)" />
+    </div>
+
+    <div class="form-group">
+        <label for="fileUrl">URL file:</label>
+        <InputText id="fileUrl" @bind-Value="newSubmission.FileUrl"
+                   class="form-control" type="url" />
+        <ValidationMessage For="@(() => newSubmission.FileUrl)" />
+    </div>
+
+    <div class="form-group">
+        <label for="fileSize">Kích thước (bytes):</label>
+        <InputNumber id="fileSize" @bind-Value="newSubmission.FileSize"
+                     class="form-control" />
+        <ValidationMessage For="@(() => newSubmission.FileSize)" />
+    </div>
+
+    <button type="submit" class="btn btn-primary" disabled="@isLoading">
+        @if (isLoading)
+        {
+            <span>Đang nộp...</span>
+        }
+        else
+        {
+            <span>Nộp Bài</span>
+        }
+    </button>
+</EditForm>
+
+@code {
+    [Parameter]
+    public string TaskId { get; set; } = string.Empty;
+
+    private TaskSubmission newSubmission = new();
+    private bool isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        newSubmission.TaskId = TaskId;
+    }
+
+    private async Task HandleSubmit()
+    {
+        isLoading = true;
+
+        var user = await AuthService.GetCurrentUserAsync();
+        if (user != null)
+        {
+            newSubmission.SubmittedBy = user.Username;
+            newSubmission.SubmittedAt = DateTime.Now;
+            newSubmission.IsCompleted = false;
+
+            var result = await SubmissionService.SubmitTaskAsync(newSubmission);
+            if (result)
+            {
+                Navigation.NavigateTo($"/assignee/task/{TaskId}");
+            }
+        }
+
+        isLoading = false;
+    }
+}

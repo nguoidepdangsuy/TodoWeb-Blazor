@@ -165,7 +165,8 @@
                                     <div class="task-content" @onclick="() => ViewTaskDetail(task)">
                                         <h4 class="task-title">@task.Title</h4>
                                         <div class="task-meta">
-                                            <span class="assignee"> @task.Assignee</span>
+                                            <!-- Sửa: AssigneeUsername thay vì Assignee -->
+                                            <span class="assignee"> @task.AssigneeUsername</span>
                                             <span class="department"> @task.Department</span>
                                         </div>
                                         <div class="task-dates">
@@ -201,7 +202,8 @@
                                     <div class="task-content" @onclick="() => ViewCompletedTaskDetail(task)">
                                         <h4 class="task-title">@task.Title</h4>
                                         <div class="task-meta">
-                                            <span class="assignee"> @task.Assignee</span>
+                                            <!-- Sửa: AssigneeUsername thay vì Assignee -->
+                                            <span class="assignee"> @task.AssigneeUsername</span>
                                             <span class="department"> @task.Department</span>
                                         </div>
                                         <div class="task-dates">
@@ -330,7 +332,8 @@
                             <div class="task-info-section">
                                 <div class="info-grid">
                                     <div class="info-item">
-                                        <strong>Người được giao:</strong> @selectedCompletedTask.Assignee
+                                        <!-- Sửa: AssigneeUsername thay vì Assignee -->
+                                        <strong>Người được giao:</strong> @selectedCompletedTask.AssigneeUsername
                                     </div>
                                     <div class="info-item">
                                         <strong>Phòng ban:</strong> @selectedCompletedTask.Department
@@ -468,24 +471,24 @@
                 else
                 {
                     currentProfile = new UserProfile
-                        {
-                            Username = user.Username,
-                            Email = user.Email ?? "",
-                            Phone = "Chưa cập nhật",
-                            Department = "Nhân viên",
-                            Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
-                        };
+                    {
+                        Username = user.Username,
+                        Email = user.Email ?? "",
+                        Phone = "Chưa cập nhật",
+                        Department = "Nhân viên",
+                        Avatar = $"https://via.placeholder.com/150/4285f4/ffffff?text={user.Username[0]}"
+                    };
                 }
             }
             catch
             {
                 currentProfile = new UserProfile
-                    {
-                        Username = user.Username ?? "User",
-                        Phone = "Chưa cập nhật",
-                        Department = "Nhân viên",
-                        Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
-                    };
+                {
+                    Username = user.Username ?? "User",
+                    Phone = "Chưa cập nhật",
+                    Department = "Nhân viên",
+                    Avatar = "https://via.placeholder.com/150/4285f4/ffffff?text=U"
+                };
             }
         }
     }
@@ -707,7 +710,8 @@
             }
 
             // Xóa tất cả tasks đang được giao cho thành viên này trong phòng hiện tại
-            var tasksAssignedToMember = allTasks.Where(t => t.Assignee == memberToDelete.Username).ToList();
+            // Sửa: AssigneeUsername thay vì Assignee
+            var tasksAssignedToMember = allTasks.Where(t => t.AssigneeUsername == memberToDelete.Username).ToList();
             foreach (var task in tasksAssignedToMember)
             {
                 await TaskService.DeleteTaskAsync(task.Id);
@@ -770,31 +774,33 @@
         roomMembers.Clear();
 
         // Thêm người tạo phòng
-        var creatorProfile = await LoadMemberProfile(currentGroup.Creator);
+        // Sửa: CreatorUsername thay vì Creator
+        var creatorProfile = await LoadMemberProfile(currentGroup.CreatorUsername);
         if (creatorProfile != null)
         {
             roomMembers.Add(new MemberInfo
-                {
-                    Username = creatorProfile.Username ?? currentGroup.Creator,
-                    Department = creatorProfile.Department ?? "Nhân viên",
-                    Avatar = creatorProfile.Avatar ?? $"https://via.placeholder.com/40/4285f4/ffffff?text={currentGroup.Creator[0]}",
-                    IsCreator = true
-                });
+            {
+                Username = creatorProfile.Username ?? currentGroup.CreatorUsername,
+                Department = creatorProfile.Department ?? "Nhân viên",
+                Avatar = creatorProfile.Avatar ?? $"https://via.placeholder.com/40/4285f4/ffffff?text={currentGroup.CreatorUsername[0]}",
+                IsCreator = true
+            });
         }
 
         // Thêm các thành viên khác
-        foreach (var memberUsername in currentGroup.Members.Where(m => m != currentGroup.Creator))
+        // Sửa: CreatorUsername thay vì Creator
+        foreach (var memberUsername in currentGroup.Members.Where(m => m != currentGroup.CreatorUsername))
         {
             var memberProfile = await LoadMemberProfile(memberUsername);
             if (memberProfile != null)
             {
                 roomMembers.Add(new MemberInfo
-                    {
-                        Username = memberProfile.Username ?? memberUsername,
-                        Department = memberProfile.Department ?? "Nhân viên",
-                        Avatar = memberProfile.Avatar ?? $"https://via.placeholder.com/40/34c759/ffffff?text={memberUsername[0]}",
-                        IsCreator = false
-                    });
+                {
+                    Username = memberProfile.Username ?? memberUsername,
+                    Department = memberProfile.Department ?? "Nhân viên",
+                    Avatar = memberProfile.Avatar ?? $"https://via.placeholder.com/40/34c759/ffffff?text={memberUsername[0]}",
+                    IsCreator = false
+                });
             }
         }
 
@@ -828,11 +834,11 @@
 
         // Trả về profile mặc định nếu không tìm thấy
         return new UserProfile
-            {
-                Username = username,
-                Department = "Nhân viên",
-                Avatar = $"https://via.placeholder.com/40/34c759/ffffff?text={username[0]}"
-            };
+        {
+            Username = username,
+            Department = "Nhân viên",
+            Avatar = $"https://via.placeholder.com/40/34c759/ffffff?text={username[0]}"
+        };
     }
 
     public class UserProfile

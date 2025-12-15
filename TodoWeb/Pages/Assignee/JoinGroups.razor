@@ -40,7 +40,7 @@
                         <span class="group-count">@userGroups.Count</span>
                     </a>
                 }
-                
+
                 <a href="/profile" class="nav-item">
                     Cài Đặt
                 </a>
@@ -93,7 +93,7 @@
                                 </div>
                                 <small class="code-hint">Bạn có thể bắt đầu làm việc trong phòng ngay bây giờ</small>
                             </div>
-                        </div> 
+                        </div>
                     </div>
                 }
             </div>
@@ -179,12 +179,13 @@
             var user = await AuthService.GetCurrentUserAsync();
             if (user != null)
             {
-                var result = await GroupService.JoinGroupAsync(groupCode.ToUpper(), user.Username);
+                // Sử dụng JoinGroupByCodeAsync thay vì JoinGroupAsync
+                var result = await GroupService.JoinGroupByCodeAsync(groupCode.ToUpper(), user.Username);
                 if (result)
                 {
                     var group = await GroupService.GetGroupByCodeAsync(groupCode.ToUpper());
                     successMessage = $"Đã tham gia phòng '{group?.Name}' thành công!";
-                    
+
                     // Cập nhật lại danh sách nhóm sau khi vào phòng thành công
                     await LoadUserGroups();
                     StateHasChanged(); // Refresh UI để hiển thị Quản Lý Nhóm

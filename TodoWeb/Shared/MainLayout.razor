@@ -157,18 +157,6 @@
                 else
                 {
                     currentProfile = new UserProfile
-                        {
-                            Username = user.Username,
-                            Email = user.Email,
-                            Phone = "Chưa cập nhật",
-                            Department = "Quản lý",
-                            Avatar = "https://via.placeholder.com/100/007bff/ffffff?text=" + user.Username[0]
-                        };
-                }
-            }
-            catch
-            {
-                currentProfile = new UserProfile
                     {
                         Username = user.Username,
                         Email = user.Email,
@@ -176,6 +164,18 @@
                         Department = "Quản lý",
                         Avatar = "https://via.placeholder.com/100/007bff/ffffff?text=" + user.Username[0]
                     };
+                }
+            }
+            catch
+            {
+                currentProfile = new UserProfile
+                {
+                    Username = user.Username,
+                    Email = user.Email,
+                    Phone = "Chưa cập nhật",
+                    Department = "Quản lý",
+                    Avatar = "https://via.placeholder.com/100/007bff/ffffff?text=" + user.Username[0]
+                };
             }
         }
     }
@@ -221,8 +221,9 @@
             var groups = await GroupService.GetGroupsAsync();
 
             // 1. THÔNG BÁO CHO ASSIGNEE: Task mới được giao
+            // Sửa: AssigneeUsername thay vì Assignee
             var assignedTasks = tasks
-                .Where(t => t.Assignee == user.Username &&
+                .Where(t => t.AssigneeUsername == user.Username &&
                            (DateTime.Now - t.CreatedAt).TotalHours <= 24)
                 .ToList();
             Console.WriteLine($"Found {assignedTasks.Count} newly assigned tasks for user");
@@ -241,14 +242,14 @@
                     var creatorName = creatorProfile?.FullName ?? creatorProfile?.Username ?? task.CreatedBy;
 
                     notifications.Add(new Notification
-                        {
-                            Id = task.Id + "_assigned_to_me",
-                            Type = "task_assigned_to_me",
-                            Message = $"{creatorName} đã giao task '{task.Title}' cho bạn ở Phòng {group.Name}",
-                            IsRead = false,
-                            CreatedAt = task.CreatedAt,
-                            Color = "yellow"
-                        });
+                    {
+                        Id = task.Id + "_assigned_to_me",
+                        Type = "task_assigned_to_me",
+                        Message = $"{creatorName} đã giao task '{task.Title}' cho bạn ở Phòng {group.Name}",
+                        IsRead = false,
+                        CreatedAt = task.CreatedAt,
+                        Color = "yellow"
+                    });
                     Console.WriteLine($"Added notification for assigned task to me: {task.Title}");
                 }
             }
@@ -273,24 +274,25 @@
                     var submitterName = submitterProfile?.FullName ?? submitterProfile?.Username ?? submission.SubmittedBy;
 
                     notifications.Add(new Notification
-                        {
-                            Id = submission.Id,
-                            Type = "submission",
-                            Message = $"{submitterName} đã nộp file cho task '{task.Title}' ở Phòng {group.Name}",
-                            IsRead = false,
-                            CreatedAt = submission.SubmittedAt,
-                            Color = "blue"
-                        });
+                    {
+                        Id = submission.Id,
+                        Type = "submission",
+                        Message = $"{submitterName} đã nộp file cho task '{task.Title}' ở Phòng {group.Name}",
+                        IsRead = false,
+                        CreatedAt = submission.SubmittedAt,
+                        Color = "blue"
+                    });
                     Console.WriteLine($"Added notification for submission: {submission.FileName}");
                 }
             }
 
             // 3. THÔNG BÁO CHO CẢ CREATOR VÀ ASSIGNEE: Deadline
+            // Sửa: AssigneeUsername thay vì Assignee
             var approachingTasks = tasks
                 .Where(t => !t.IsCompleted &&
                            (t.DueDate - DateTime.Today).TotalDays <= 1 &&
                            (t.DueDate - DateTime.Today).TotalDays >= 0 &&
-                           (t.CreatedBy == user.Username || t.Assignee == user.Username))
+                           (t.CreatedBy == user.Username || t.AssigneeUsername == user.Username))
                 .ToList();
             Console.WriteLine($"Found {approachingTasks.Count} approaching deadline tasks");
 
@@ -300,23 +302,24 @@
                 if (group != null)
                 {
                     notifications.Add(new Notification
-                        {
-                            Id = task.Id + "_deadline",
-                            Type = "deadline_approaching",
-                            Message = $"Task '{task.Title}' sắp hết hạn ở Phòng {group.Name}",
-                            IsRead = false,
-                            CreatedAt = DateTime.Now,
-                            Color = "red"
-                        });
+                    {
+                        Id = task.Id + "_deadline",
+                        Type = "deadline_approaching",
+                        Message = $"Task '{task.Title}' sắp hết hạn ở Phòng {group.Name}",
+                        IsRead = false,
+                        CreatedAt = DateTime.Now,
+                        Color = "red"
+                    });
                     Console.WriteLine($"Added notification for approaching deadline: {task.Title}");
                 }
             }
 
             // 4. THÔNG BÁO CHO CẢ CREATOR VÀ ASSIGNEE: Quá hạn
+            // Sửa: AssigneeUsername thay vì Assignee
             var overdueTasks = tasks
                 .Where(t => !t.IsCompleted &&
                            (t.DueDate - DateTime.Today).TotalDays < 0 &&
-                           (t.CreatedBy == user.Username || t.Assignee == user.Username))
+                           (t.CreatedBy == user.Username || t.AssigneeUsername == user.Username))
                 .ToList();
             Console.WriteLine($"Found {overdueTasks.Count} overdue tasks");
 
@@ -326,14 +329,14 @@
                 if (group != null)
                 {
                     notifications.Add(new Notification
-                        {
-                            Id = task.Id + "_overdue",
-                            Type = "overdue",
-                            Message = $"Task '{task.Title}' đã hết hạn ở Phòng {group.Name}",
-                            IsRead = false,
-                            CreatedAt = DateTime.Now,
-                            Color = "gray"
-                        });
+                    {
+                        Id = task.Id + "_overdue",
+                        Type = "overdue",
+                        Message = $"Task '{task.Title}' đã hết hạn ở Phòng {group.Name}",
+                        IsRead = false,
+                        CreatedAt = DateTime.Now,
+                        Color = "gray"
+                    });
                     Console.WriteLine($"Added notification for overdue: {task.Title}");
                 }
             }
@@ -351,22 +354,23 @@
                 if (group != null)
                 {
                     // Tìm profile của người được giao
-                    var assigneeProfileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{task.Assignee}");
+                    // Sửa: AssigneeUsername thay vì Assignee
+                    var assigneeProfileJson = await JSRuntime.InvokeAsync<string>("localStorage.getItem", $"profile_{task.AssigneeUsername}");
                     var assigneeProfile = !string.IsNullOrEmpty(assigneeProfileJson)
                         ? JsonSerializer.Deserialize<UserProfile>(assigneeProfileJson)
                         : null;
 
-                    var assigneeName = assigneeProfile?.FullName ?? assigneeProfile?.Username ?? task.Assignee;
+                    var assigneeName = assigneeProfile?.FullName ?? assigneeProfile?.Username ?? task.AssigneeUsername;
 
                     notifications.Add(new Notification
-                        {
-                            Id = task.Id + "_assigned_by_me",
-                            Type = "task_assigned_by_me",
-                            Message = $"Bạn đã giao task '{task.Title}' cho {assigneeName} ở Phòng {group.Name}",
-                            IsRead = false,
-                            CreatedAt = task.CreatedAt,
-                            Color = "yellow"
-                        });
+                    {
+                        Id = task.Id + "_assigned_by_me",
+                        Type = "task_assigned_by_me",
+                        Message = $"Bạn đã giao task '{task.Title}' cho {assigneeName} ở Phòng {group.Name}",
+                        IsRead = false,
+                        CreatedAt = task.CreatedAt,
+                        Color = "yellow"
+                    });
                     Console.WriteLine($"Added notification for assigned task by me: {task.Title}");
                 }
             }
