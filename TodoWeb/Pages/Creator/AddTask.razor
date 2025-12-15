@@ -49,15 +49,6 @@
                 <div class="add-task-container">
                     <h2>ADD TASK</h2>
 
-                    <!-- Hiển thị thông tin phòng -->
-                    <div class="room-info-section mb-4">
-                        <div class="alert alert-info">
-                            <strong>Phòng hiện tại:</strong> @currentGroup?.Name
-                            <br />
-                            <small>Mã phòng: @currentGroup?.Code</small>
-                        </div>
-                    </div>
-
                     <EditForm Model="@newTask" OnValidSubmit="HandleAddTask">
                         <DataAnnotationsValidator />
                         <ValidationSummary />
@@ -570,7 +561,7 @@
                     {
                         Id = Guid.NewGuid().ToString(),
                         Title = newTask.Title.Trim(),
-                        AssigneeUsername = assignee.Username,
+                        AssigneeUsername = assignee.Username, // Sửa: AssigneeUsername thay vì Assignee
                         Department = assignee.Department,
                         Description = newTask.Description?.Trim() ?? "",
                         AssignDate = newTask.AssignDate,
@@ -579,8 +570,7 @@
                         CreatedBy = newTask.CreatedBy,
                         CreatedAt = DateTime.Now,
                         UpdatedAt = DateTime.Now,
-                        GroupId = GroupId,
-                        GroupName = currentGroup?.Name
+                        GroupId = GroupId
                     };
 
                     Console.WriteLine($"➕ ADDING TASK FOR: {assignee.Username}");

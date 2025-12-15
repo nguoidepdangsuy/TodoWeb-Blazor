@@ -78,7 +78,19 @@
                                         </div>
                                         <div class="info-item">
                                             <span class="info-label">Thành viên:</span>
-                                            <span class="info-value">@group.Members.Count người</span>
+                                            @{
+                                                // FIX: Lấy số lượng thành viên unique, loại bỏ trùng lặp và null/empty
+                                                var memberCount = 0;
+                                                if (group.Members != null)
+                                                {
+                                                    memberCount = group.Members
+                                                    .Where(m => !string.IsNullOrEmpty(m))
+                                                    .Distinct()
+                                                    .Count();
+                                                }
+                                                Console.WriteLine($"Group {group.Name} - Raw members count: {group.Members?.Count ?? 0}, Unique count: {memberCount}");
+                                            }
+                                            <span class="info-value">@memberCount người</span>
                                         </div>
                                         <div class="info-item">
                                             <span class="info-label">Ngày tạo:</span>
@@ -100,7 +112,7 @@
                     else
                     {
                         <div class="empty-state">
-                            <div class="empty-icon"></div>
+                            <div class="empty-icon">🏢</div>
                             <h3>Chưa có phòng nào được tạo</h3>
                             <p>Hãy tạo phòng đầu tiên để bắt đầu quản lý công việc</p>
                             <a href="/creator/create-group" class="btn btn-primary">Tạo Phòng Ngay</a>
@@ -137,7 +149,19 @@
                                         </div>
                                         <div class="info-item">
                                             <span class="info-label">Thành viên:</span>
-                                            <span class="info-value">@group.Members.Count người</span>
+                                            @{
+                                                // FIX: Lấy số lượng thành viên unique, loại bỏ trùng lặp và null/empty
+                                                var memberCount = 0;
+                                                if (group.Members != null)
+                                                {
+                                                    memberCount = group.Members
+                                                    .Where(m => !string.IsNullOrEmpty(m))
+                                                    .Distinct()
+                                                    .Count();
+                                                }
+                                                Console.WriteLine($"Group {group.Name} - Raw members count: {group.Members?.Count ?? 0}, Unique count: {memberCount}");
+                                            }
+                                            <span class="info-value">@memberCount người</span>
                                         </div>
                                         <div class="info-item">
                                             <span class="info-label">Ngày tham gia:</span>
@@ -159,7 +183,7 @@
                     else
                     {
                         <div class="empty-state">
-                            <div class="empty-icon"></div>
+                            <div class="empty-icon">👥</div>
                             <h3>Chưa tham gia phòng nào</h3>
                             <p>Hãy tham gia phòng để cùng làm việc với mọi người</p>
                             <a href="/assignee/join-group" class="btn btn-secondary">Tham Gia Phòng</a>
@@ -226,9 +250,24 @@
         {
             // Lấy phòng đã tạo
             createdGroups = await GroupService.GetCreatedGroupsAsync(user.Username);
+
+            // Debug log để xem dữ liệu
+            Console.WriteLine($"Loaded {createdGroups.Count} created groups");
+            foreach (var group in createdGroups)
+            {
+                Console.WriteLine($"Group: {group.Name}, Members: {string.Join(", ", group.Members ?? new List<string>())}");
+            }
+
             // Lấy phòng đã tham gia (loại bỏ phòng đã tạo)
             var allJoinedGroups = await GroupService.GetUserGroupsAsync(user.Username);
             joinedGroups = allJoinedGroups.Where(g => g.CreatorUsername != user.Username).ToList();
+
+            // Debug log để xem dữ liệu
+            Console.WriteLine($"Loaded {joinedGroups.Count} joined groups");
+            foreach (var group in joinedGroups)
+            {
+                Console.WriteLine($"Group: {group.Name}, Members: {string.Join(", ", group.Members ?? new List<string>())}");
+            }
         }
     }
 
@@ -240,24 +279,24 @@
 
     private async Task EnterGroup(string groupId, bool isCreator)
     {
-        Console.WriteLine($" Entering group: {groupId}");
+        Console.WriteLine($"Entering group: {groupId}");
 
         try
         {
             if (isCreator)
             {
-                Console.WriteLine($" Navigating to creator room: {groupId}");
+                Console.WriteLine($"Navigating to creator room: {groupId}");
                 Navigation.NavigateTo($"/creator/room/{groupId}");
             }
             else
             {
-                Console.WriteLine($" Navigating to assignee room: {groupId}");
+                Console.WriteLine($"Navigating to assignee room: {groupId}");
                 Navigation.NavigateTo($"/assignee/room/{groupId}");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($" Navigation error: {ex.Message}");
+            Console.WriteLine($"Navigation error: {ex.Message}");
             await JSRuntime.InvokeVoidAsync("alert", $"Lỗi: {ex.Message}");
         }
     }
