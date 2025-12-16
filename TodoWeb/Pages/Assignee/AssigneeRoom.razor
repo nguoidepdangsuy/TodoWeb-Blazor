@@ -803,34 +803,55 @@
         var file = e.File;
         if (file != null && selectedTask != null)
         {
-            // Tạo URL upload tạm thời (trong thực tế sẽ upload lên Supabase Storage)
-            var fileUrl = $"uploads/{Guid.NewGuid()}{Path.GetExtension(file.Name)}";
-            var submission = new TaskSubmission
+            try
             {
-                Id = Guid.NewGuid().ToString(),
-                TaskId = selectedTask.Id,
-                FileName = file.Name,
-                FileSize = file.Size,
-                FileUrl = fileUrl,
-                SubmittedAt = DateTime.Now,
-                SubmittedBy = currentUsername,
-                IsCompleted = false
-            };
+                // Hiển thị loading state
+                var loadingMessage = $"Đang upload file {file.Name}...";
+                await JSRuntime.InvokeVoidAsync("alert", loadingMessage);
 
-            // Gọi phương thức đúng theo interface mới
-            var result = await TaskSubmissionService.CreateSubmissionAsync(submission);
-            if (result)
-            {
-                submissions.Add(submission);
-                StateHasChanged();
-                await JSRuntime.InvokeVoidAsync("alert", $"Đã tải lên file: {file.Name}");
-                // Debug log
-                await JSRuntime.InvokeVoidAsync("console.log",
-                    $"File uploaded: {file.Name} for task: {selectedTask.Title} by user: {currentUsername}");
+                // Upload file lên Supabase Storage
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // 10MB limit
+
+                // Gọi phương thức UploadFileAsync
+                var fileUrl = await TaskSubmissionService.UploadFileAsync(stream, file.Name, selectedTask.Id);
+
+                if (!string.IsNullOrEmpty(fileUrl))
+                {
+                    var submission = new TaskSubmission
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        TaskId = selectedTask.Id,
+                        FileName = file.Name,
+                        FileSize = file.Size,
+                        FileUrl = fileUrl,
+                        SubmittedAt = DateTime.Now,
+                        SubmittedBy = currentUsername,
+                        IsCompleted = false
+                    };
+
+                    var result = await TaskSubmissionService.CreateSubmissionAsync(submission);
+                    if (result)
+                    {
+                        submissions.Add(submission);
+                        StateHasChanged();
+                        await JSRuntime.InvokeVoidAsync("alert", $"✅ Đã tải lên file: {file.Name}");
+
+                        // Refresh submissions list
+                        submissions = await TaskSubmissionService.GetSubmissionsByTaskAsync(selectedTask.Id);
+                    }
+                    else
+                    {
+                        await JSRuntime.InvokeVoidAsync("alert", "❌ Lỗi khi lưu thông tin file!");
+                    }
+                }
+                else
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "❌ Lỗi khi upload file lên storage!");
+                }
             }
-            else
+            catch (Exception ex)
             {
-                await JSRuntime.InvokeVoidAsync("alert", "Lỗi khi tải lên file!");
+                await JSRuntime.InvokeVoidAsync("alert", $"❌ Lỗi: {ex.Message}");
             }
         }
     }
@@ -839,13 +860,15 @@
     {
         try
         {
-            // Tạo blob URL để tải file (trong thực tế sẽ là URL từ Supabase Storage)
-            await JSRuntime.InvokeVoidAsync("open", submission.FileUrl, "_blank");
-            await JSRuntime.InvokeVoidAsync("alert", $"Đang mở file: {submission.FileName}");
+            // Mở URL file trong tab mới
+            await JSRuntime.InvokeVoidAsync("window.open", submission.FileUrl, "_blank");
+
+            // Hoặc sử dụng JavaScript để download
+            // await JSRuntime.InvokeVoidAsync("downloadFile", submission.FileName, submission.FileUrl);
         }
         catch (Exception ex)
         {
-            await JSRuntime.InvokeVoidAsync("alert", $"Lỗi khi tải file: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"❌ Lỗi khi tải file: {ex.Message}");
         }
     }
 

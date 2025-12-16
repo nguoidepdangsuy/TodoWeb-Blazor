@@ -1,19 +1,26 @@
-﻿using TodoWeb.Models;
+﻿using System.Text.Json;
 using Microsoft.JSInterop;
-using System.Text.Json;
+using TodoWeb.Models;
+using System.IO;
 
 namespace TodoWeb.Services
 {
-    public class TaskSubmissionService : ITaskSubmissionService
+    public class SupabaseTaskSubmissionService : ITaskSubmissionService
     {
+        private readonly SupabaseService _supabaseService;
+        private readonly IConfiguration _configuration;
         private readonly IJSRuntime _jsRuntime;
 
-        public TaskSubmissionService(IJSRuntime jsRuntime)
+        public SupabaseTaskSubmissionService(
+            SupabaseService supabaseService,
+            IConfiguration configuration,
+            IJSRuntime jsRuntime)
         {
+            _supabaseService = supabaseService;
+            _configuration = configuration;
             _jsRuntime = jsRuntime;
         }
 
-        // Lấy submission theo ID
         public async Task<TaskSubmission?> GetSubmissionAsync(string id)
         {
             try
@@ -27,7 +34,6 @@ namespace TodoWeb.Services
             }
         }
 
-        // Lấy submissions theo task
         public async Task<List<TaskSubmission>> GetSubmissionsByTaskAsync(string taskId)
         {
             try
@@ -41,7 +47,6 @@ namespace TodoWeb.Services
             }
         }
 
-        // Lấy submissions theo user
         public async Task<List<TaskSubmission>> GetSubmissionsByUserAsync(string username)
         {
             try
@@ -55,41 +60,34 @@ namespace TodoWeb.Services
             }
         }
 
-        // Lấy submissions gần đây (cho creator)
         public async Task<List<TaskSubmission>> GetRecentSubmissionsAsync(string creatorUsername)
         {
             try
             {
-                var submissionsJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", "taskSubmissions");
+                // Lấy tasks được tạo bởi creator
                 var tasksJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", "tasks");
+                if (string.IsNullOrEmpty(tasksJson)) return new List<TaskSubmission>();
 
-                if (!string.IsNullOrEmpty(submissionsJson) && !string.IsNullOrEmpty(tasksJson))
-                {
-                    var allSubmissions = JsonSerializer.Deserialize<List<TaskSubmission>>(submissionsJson) ?? new List<TaskSubmission>();
-                    var tasks = JsonSerializer.Deserialize<List<WorkTask>>(tasksJson) ?? new List<WorkTask>();
+                var tasks = JsonSerializer.Deserialize<List<WorkTask>>(tasksJson) ?? new List<WorkTask>();
+                var creatorTaskIds = tasks.Where(t => t.CreatedBy == creatorUsername).Select(t => t.Id).ToHashSet();
 
-                    // Lấy task IDs được tạo bởi creator
-                    var creatorTaskIds = tasks.Where(t => t.CreatedBy == creatorUsername).Select(t => t.Id).ToHashSet();
+                // Lấy submissions
+                var submissions = await GetAllSubmissionsAsync();
+                var recentSubmissions = submissions
+                    .Where(s => creatorTaskIds.Contains(s.TaskId))
+                    .OrderByDescending(s => s.SubmittedAt)
+                    .Take(10)
+                    .ToList();
 
-                    // Lọc và sắp xếp submissions
-                    var recentSubmissions = allSubmissions
-                        .Where(s => creatorTaskIds.Contains(s.TaskId))
-                        .OrderByDescending(s => s.SubmittedAt)
-                        .Take(10)
-                        .ToList();
-
-                    return recentSubmissions;
-                }
+                return recentSubmissions;
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error in GetRecentSubmissionsAsync: {ex.Message}");
+                return new List<TaskSubmission>();
             }
-
-            return new List<TaskSubmission>();
         }
 
-        // Tạo submission mới
         public async Task<bool> CreateSubmissionAsync(TaskSubmission submission)
         {
             try
@@ -122,7 +120,6 @@ namespace TodoWeb.Services
             }
         }
 
-        // Cập nhật submission
         public async Task<bool> UpdateSubmissionAsync(TaskSubmission submission)
         {
             try
@@ -148,7 +145,6 @@ namespace TodoWeb.Services
             }
         }
 
-        // Xóa submission
         public async Task<bool> DeleteSubmissionAsync(string id)
         {
             try
@@ -172,7 +168,6 @@ namespace TodoWeb.Services
             }
         }
 
-        // Đánh dấu submission là đã hoàn thành
         public async Task<bool> MarkSubmissionAsCompletedAsync(string submissionId)
         {
             try
@@ -196,7 +191,6 @@ namespace TodoWeb.Services
             }
         }
 
-        // Phương thức tương thích với code cũ
         public async Task<List<TaskSubmission>> GetSubmissionsAsync(string taskId)
         {
             return await GetSubmissionsByTaskAsync(taskId);
@@ -219,23 +213,6 @@ namespace TodoWeb.Services
             return false;
         }
 
-        // Lấy tất cả submissions
-        private async Task<List<TaskSubmission>> GetAllSubmissionsAsync()
-        {
-            try
-            {
-                var submissionsJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", "taskSubmissions");
-                if (!string.IsNullOrEmpty(submissionsJson))
-                {
-                    return JsonSerializer.Deserialize<List<TaskSubmission>>(submissionsJson) ?? new List<TaskSubmission>();
-                }
-            }
-            catch
-            {
-                // Ignore errors
-            }
-            return new List<TaskSubmission>();
-        }
         public async Task<string> UploadFileAsync(Stream fileStream, string fileName, string taskId)
         {
             try
@@ -257,6 +234,24 @@ namespace TodoWeb.Services
                 await _jsRuntime.InvokeVoidAsync("console.error", $"Error uploading file: {ex.Message}");
                 return string.Empty;
             }
+        }
+
+        // Lấy tất cả submissions
+        private async Task<List<TaskSubmission>> GetAllSubmissionsAsync()
+        {
+            try
+            {
+                var submissionsJson = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", "taskSubmissions");
+                if (!string.IsNullOrEmpty(submissionsJson))
+                {
+                    return JsonSerializer.Deserialize<List<TaskSubmission>>(submissionsJson) ?? new List<TaskSubmission>();
+                }
+            }
+            catch
+            {
+                // Ignore errors
+            }
+            return new List<TaskSubmission>();
         }
     }
 }

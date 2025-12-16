@@ -1,10 +1,10 @@
 ﻿using TodoWeb.Models;
+using System.IO;
 
 namespace TodoWeb.Services
 {
     public interface ITaskSubmissionService
     {
-        // Các phương thức mới theo model mới
         Task<TaskSubmission?> GetSubmissionAsync(string id);
         Task<List<TaskSubmission>> GetSubmissionsByTaskAsync(string taskId);
         Task<List<TaskSubmission>> GetSubmissionsByUserAsync(string username);
@@ -17,5 +17,7 @@ namespace TodoWeb.Services
             GetSubmissionsByTaskAsync(taskId);
         Task<bool> SubmitTaskAsync(TaskSubmission submission) =>
             CreateSubmissionAsync(submission);
+        Task<bool> MarkAsCompletedAsync(string taskId);
+        Task<string> UploadFileAsync(Stream fileStream, string fileName, string taskId);
     }
 }
